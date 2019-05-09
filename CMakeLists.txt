@@ -83,21 +83,33 @@ ExternalProject_Add(ips4o
 ExternalProject_Get_property(ips4o SOURCE_DIR)
 set(ips4o_INCLUDE "${SOURCE_DIR}")
 
+# taywee's C++ args library, header only
+ExternalProject_Add(tayweeargs
+  GIT_REPOSITORY "https://github.com/Taywee/args.git"
+  GIT_TAG "3de44ec671db452cc0c4ef86399b108939768abb"
+  INSTALL_COMMAND "")
+ExternalProject_Get_property(tayweeargs SOURCE_DIR)
+set(tayweeargs_INCLUDE "${SOURCE_DIR}")
+
 set(CMAKE_BUILD_TYPE Release)
 
 # set up our target executable and specify its dependencies and includes
 add_executable(mmmultimap
   ${CMAKE_SOURCE_DIR}/src/main.cpp
+  ${CMAKE_SOURCE_DIR}/src/buffer.cpp
+  ${CMAKE_SOURCE_DIR}/src/threads.cpp
   )
 add_dependencies(mmmultimap sdsl-lite)
 add_dependencies(mmmultimap dynamic)
 add_dependencies(mmmultimap ips4o)
+add_dependencies(mmmultimap tayweeargs)
 target_include_directories(mmmultimap PUBLIC
   "${CMAKE_SOURCE_DIR}/src"
   "${sdsl-lite_INCLUDE}"
   "${sdsl-lite-divsufsort_INCLUDE}"
   "${dynamic_INCLUDE}"
-  "${ips4o_INCLUDE}")
+  "${ips4o_INCLUDE}"
+  "${tayweeargs_INCLUDE}")
 target_link_libraries(mmmultimap
   "${sdsl-lite_LIB}/libsdsl.a"
   "${sdsl-lite-divsufsort_LIB}/libdivsufsort.a"
