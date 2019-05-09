@@ -20,18 +20,6 @@
 
 namespace mmmultimap {
 
-// memory mapped buffer struct
-struct mmap_buffer_t {
-  int fd;
-  off_t size;
-  void *data;
-};
-
-// some forward declarations
-int open_mmap_buffer(const char* path, mmap_buffer_t* buffer);
-void close_mmap_buffer(mmap_buffer_t* buffer);
-int get_thread_count(void);
-
 /*
 'mmmultimap' is a disk-backed multimap where keys and values are stored
 in a binary file. The key space is assumed to be numeric, but values
@@ -50,7 +38,72 @@ on this bitvector.
 template <typename Key, typename Value> class multimap {
 
 private:
+    
+    // memory mapped buffer struct
+    struct mmap_buffer_t {
+        int fd;
+        off_t size;
+        void *data;
+    };
 
+    // utilities used by mmmultimap
+    int open_mmap_buffer(const char* path, mmap_buffer_t* buffer) {
+        buffer->data = nullptr;
+        buffer->fd = open(path, O_RDWR);
+        if (buffer->fd == -1) {
+            goto error;
+        }
+        struct stat stats;
+        if (-1 == fstat(buffer->fd, &stats)) {
+            goto error;
+        }
+        if (!(buffer->data = mmap(nullptr,
+                                  stats.st_size,
+                                  PROT_READ | PROT_WRITE,
+                                  MAP_SHARED,
+                                  buffer->fd,
+                                  0
+                  ))) {
+            goto error;
+        }
+        madvise(buffer, stats.st_size, POSIX_MADV_WILLNEED | POSIX_MADV_SEQUENTIAL);
+        buffer->size = stats.st_size;
+        return 0;
+
+    error:
+        perror(path);
+        if (buffer->data)
+            munmap(buffer->data, stats.st_size);
+        if (buffer->fd != -1)
+            close(buffer->fd);
+        buffer->data = 0;
+        buffer->fd = 0;
+        return -1;
+    }
+
+    void close_mmap_buffer(mmap_buffer_t* buffer) {
+        if (buffer->data) {
+            munmap(buffer->data, buffer->size);
+            buffer->data = 0;
+            buffer->size = 0;
+        }
+
+        if (buffer->fd) {
+            close(buffer->fd);
+            buffer->fd = 0;
+        }
+    }
+
+    int get_thread_count(void) {
+        int thread_count = 1;
+#pragma omp parallel
+        {
+#pragma omp master
+            thread_count = omp_get_num_threads();
+        }
+        return thread_count;
+    }
+    
     typedef struct { Key key; Value value; } Entry;
     std::ofstream writer;
     std::vector<std::ofstream> writers;
@@ -401,67 +454,5 @@ public:
         }
     }
 };
-
-
-// utilities used by mmmultimap
-// placed here for header-only use
-
-int open_mmap_buffer(const char* path, mmap_buffer_t* buffer) {
-    buffer->data = nullptr;
-    buffer->fd = open(path, O_RDWR);
-    if (buffer->fd == -1) {
-        goto error;
-    }
-    struct stat stats;
-    if (-1 == fstat(buffer->fd, &stats)) {
-        goto error;
-    }
-    if (!(buffer->data = mmap(nullptr,
-                              stats.st_size,
-                              PROT_READ | PROT_WRITE,
-                              MAP_SHARED,
-                              buffer->fd,
-                              0
-              ))) {
-        goto error;
-    }
-    madvise(buffer, stats.st_size, POSIX_MADV_WILLNEED | POSIX_MADV_SEQUENTIAL);
-    buffer->size = stats.st_size;
-    return 0;
-
-error:
-    perror(path);
-    if (buffer->data)
-        munmap(buffer->data, stats.st_size);
-    if (buffer->fd != -1)
-        close(buffer->fd);
-    buffer->data = 0;
-    buffer->fd = 0;
-    return -1;
-}
-
-
-void close_mmap_buffer(mmap_buffer_t* buffer) {
-    if (buffer->data) {
-        munmap(buffer->data, buffer->size);
-        buffer->data = 0;
-        buffer->size = 0;
-    }
-
-    if (buffer->fd) {
-        close(buffer->fd);
-        buffer->fd = 0;
-    }
-}
-
-int get_thread_count(void) {
-    int thread_count = 1;
-#pragma omp parallel
-    {
-#pragma omp master
-        thread_count = omp_get_num_threads();
-    }
-    return thread_count;
-}
 
 }

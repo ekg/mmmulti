@@ -14,7 +14,7 @@ int main(int argc, char** argv) {
 
     args::ArgumentParser parser("memmapped multimap interface");
     args::HelpFlag help(parser, "help", "display this help summary", {'h', "help"});
-    args::ValueFlag<std::string> in_file(parser, "FILE", "use this input file for a uint64_t sort", {'i', "in"});
+    //args::ValueFlag<std::string> in_file(parser, "FILE", "use this input file for a uint64_t sort", {'i', "in"});
     args::ValueFlag<std::string> test_file(parser, "FILE", "test mmmultimap with random data in this file", {'t', "test-file"});
     args::ValueFlag<uint64_t> test_size(parser, "N", "test this many pairs", {'s', "test-size"});
     args::ValueFlag<uint64_t> threads(parser, "N", "number of threads to use", {'t', "threads"});
@@ -36,39 +36,6 @@ int main(int argc, char** argv) {
 
     if (args::get(threads)) {
         omp_set_num_threads(args::get(threads));
-    }
-    
-    if (!args::get(in_file).empty()) {
-        mmap_buffer_t buffer;
-        open_mmap_buffer(args::get(in_file).c_str(), &buffer);
-        std::vector<uint64_t>::iterator begin_ptr((uint64_t*)buffer.data);
-        uint64_t data_len = buffer.size/sizeof(uint64_t);
-        std::vector<uint64_t>::iterator end_ptr((uint64_t*)buffer.data+data_len);
-        std::cerr << "data length " << data_len << std::endl;
-
-        std::cerr << "starting sort" << std::endl;
-        auto start = std::chrono::system_clock::now();
-        // sort in parallel (uses OpenMP if available, std::thread otherwise)
-        ips4o::parallel::sort(begin_ptr, end_ptr);
-        // sort sequentially
-        //ips4o::sort(x.begin(), x.end());
-        auto end = std::chrono::system_clock::now();
-
-        std::chrono::duration<double> elapsed_seconds = end-start;
-        std::time_t end_time = std::chrono::system_clock::to_time_t(end);
-        std::cerr << "completed in " << elapsed_seconds.count() << "s" << std::endl;
-
-        // check the sort
-        /*
-        std::cerr << "checking sort" << std::endl;
-        uint64_t* x = (uint64_t*)buffer.data;
-        for (int n=1; n<data_len; ++n) {
-            assert(x[n-1] <= x[n]);
-        }
-        std::cerr << "ok" << std::endl;
-        */
-
-        close_mmap_buffer(&buffer);
     }
 
     if (!args::get(test_file).empty()) {
