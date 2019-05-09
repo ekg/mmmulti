@@ -5,8 +5,6 @@
 #include <chrono>
 #include "ips4o.hpp"
 #include "args.hxx"
-#include "buffer.hpp"
-#include "threads.hpp"
 #include <endian.h>
 #include "mmmultimap.hpp"
 

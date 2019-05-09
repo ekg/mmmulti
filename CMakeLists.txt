@@ -96,8 +96,6 @@ set(CMAKE_BUILD_TYPE Release)
 # set up our target executable and specify its dependencies and includes
 add_executable(mmmultimap
   ${CMAKE_SOURCE_DIR}/src/main.cpp
-  ${CMAKE_SOURCE_DIR}/src/buffer.cpp
-  ${CMAKE_SOURCE_DIR}/src/threads.cpp
   )
 add_dependencies(mmmultimap sdsl-lite)
 add_dependencies(mmmultimap dynamic)
