@@ -97,6 +97,9 @@ set(CMAKE_BUILD_TYPE Release)
 add_executable(mmmultimap
   ${CMAKE_SOURCE_DIR}/src/main.cpp
   )
+add_executable(test_sort
+  ${CMAKE_SOURCE_DIR}/src/test_sort.cpp
+  )
 add_dependencies(mmmultimap sdsl-lite)
 add_dependencies(mmmultimap dynamic)
 add_dependencies(mmmultimap ips4o)
@@ -109,6 +112,25 @@ target_include_directories(mmmultimap PUBLIC
   "${ips4o_INCLUDE}"
   "${tayweeargs_INCLUDE}")
 target_link_libraries(mmmultimap
+  "${sdsl-lite_LIB}/libsdsl.a"
+  "${sdsl-lite-divsufsort_LIB}/libdivsufsort.a"
+  "${sdsl-lite-divsufsort_LIB}/libdivsufsort64.a"
+  "-latomic"
+#  "-ltcmalloc_minimal"
+  )
+
+add_dependencies(test_sort sdsl-lite)
+add_dependencies(test_sort dynamic)
+add_dependencies(test_sort ips4o)
+add_dependencies(test_sort tayweeargs)
+target_include_directories(test_sort PUBLIC
+  "${CMAKE_SOURCE_DIR}/src"
+  "${sdsl-lite_INCLUDE}"
+  "${sdsl-lite-divsufsort_INCLUDE}"
+  "${dynamic_INCLUDE}"
+  "${ips4o_INCLUDE}"
+  "${tayweeargs_INCLUDE}")
+target_link_libraries(test_sort
   "${sdsl-lite_LIB}/libsdsl.a"
   "${sdsl-lite-divsufsort_LIB}/libdivsufsort.a"
   "${sdsl-lite-divsufsort_LIB}/libdivsufsort64.a"
