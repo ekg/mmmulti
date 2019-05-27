@@ -53,6 +53,7 @@ ExternalProject_Add(sdsl-lite
   GIT_REPOSITORY "https://github.com/simongog/sdsl-lite.git"
   GIT_TAG "d52aa9a71513d132e30c09491b5899af449ebb94"
   CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:PATH=${INSTALL_DIR} # TODO ADD static build flag
+  UPDATE_COMMAND ""
   INSTALL_COMMAND "")
 ExternalProject_Get_property(sdsl-lite INSTALL_DIR)
 set(sdsl-lite_INCLUDE "${INSTALL_DIR}/src/sdsl-lite-build/include")
@@ -77,6 +78,7 @@ set(dynamic_INCLUDE "${INSTALL_DIR}/src/dynamic/include")
 ExternalProject_Add(ips4o
   GIT_REPOSITORY "https://github.com/SaschaWitt/ips4o.git"
   GIT_TAG "bff3ccf0bf349497f2bb10f825d160b792236367"
+  UPDATE_COMMAND ""
   INSTALL_COMMAND ""
   BUILD_COMMAND ""
   CONFIGURE_COMMAND "")
@@ -87,6 +89,7 @@ set(ips4o_INCLUDE "${SOURCE_DIR}")
 ExternalProject_Add(tayweeargs
   GIT_REPOSITORY "https://github.com/Taywee/args.git"
   GIT_TAG "3de44ec671db452cc0c4ef86399b108939768abb"
+  UPDATE_COMMAND ""
   INSTALL_COMMAND "")
 ExternalProject_Get_property(tayweeargs SOURCE_DIR)
 set(tayweeargs_INCLUDE "${SOURCE_DIR}")

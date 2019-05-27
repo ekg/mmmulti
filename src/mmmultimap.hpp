@@ -115,12 +115,12 @@ private:
     size_t record_size = 0;
     // key information
     Key max_key = 0;
+    uint64_t n_records = 0;
     // null key and value
     Key nullkey;
     Value nullvalue;
     // compressed bitvector marked at key starts
     sdsl::sd_vector<> key_cbv;
-    //sdsl::sd_vector<>::rank_1_type key_cbv_rank;
     // select support for the key cbv
     sdsl::sd_vector<>::select_1_type key_cbv_select;
     bool indexed = false;
@@ -158,7 +158,7 @@ public:
         uint32_t version;
         in.read((char*) &version, sizeof(version));
         assert(version == OUTPUT_VERSION);
-        size_t n_records, record_size_in_bytes;
+        size_t record_size_in_bytes;
         sdsl::read_member(record_size_in_bytes, in);
         assert(record_size_in_bytes == record_size);
         sdsl::read_member(n_records, in);
@@ -330,9 +330,7 @@ public:
 
     Entry read_entry(size_t i) {
         Entry e;
-        //auto& reader = get_reader();
-        memcpy(&e.key, &reader[i*record_size], sizeof(Key));
-        memcpy(&e.value, &reader[i*record_size]+sizeof(Key), sizeof(Value));
+        memcpy(&e, &reader[i*record_size], sizeof(Entry));
         return e;
     }
 
@@ -355,14 +353,13 @@ public:
         max_key = new_max;
         padsort();
         open_reader();
-        size_t n_records = record_count();
+        n_records = record_count();
         sdsl::bit_vector key_bv(n_records+1);
         // record the key starts
         Key last = nullkey, curr = nullkey;
         Value val = nullvalue;
         Entry entry;
         //reader.read((char*)&last, sizeof(Key));
-        //key_bv[0] = 1;
         for (size_t i = 0; i < n_records; ++i) {
             entry = read_entry(i);
             curr = entry.key;
@@ -378,7 +375,6 @@ public:
         // build the compressed bitvector
         sdsl::util::assign(key_cbv, sdsl::sd_vector<>(key_bv));
         key_bv.resize(0); // memory could be tight
-        //sdsl::util::assign(key_cbv_rank, sdsl::sd_vector<>::rank_1_type(&key_cbv));
         // build the select supports on the key bitvector
         sdsl::util::assign(key_cbv_select, sdsl::sd_vector<>::select_1_type(&key_cbv));
         indexed = true;
@@ -396,11 +392,10 @@ public:
         return e.value;
     }
 
-    void for_each_pair(const std::function<void(const Key&, const Value&)>& lambda) {
+    void for_each_pair_parallel(const std::function<void(const Key&, const Value&)>& lambda) {
         Key key;
         Value value;
         Entry entry;
-        size_t n_records = record_count();
 #pragma omp parallel for schedule(dynamic)
         for (size_t i = 0; i < n_records; ++i) {
             entry = read_entry(i);
@@ -410,6 +405,18 @@ public:
         }
     }
 
+    void for_each_pair(const std::function<void(const Key&, const Value&)>& lambda) {
+        Key key;
+        Value value;
+        Entry entry;
+        for (size_t i = 0; i < n_records; ++i) {
+            entry = read_entry(i);
+            key = entry.key;
+            value = entry.value;
+            lambda(key, value);
+        }
+    }
+    
     std::vector<Value> values(const Key& key) {
         std::vector<Value> values;
         for_values_of(key, [&values](const Value& v) { values.push_back(v); });
@@ -427,7 +434,7 @@ public:
         // then we can do a simple 'uniq' operation to get the unique values
         Value last = nullvalue;
         for_values_of(key, [this,&lambda,&last](const Value& value) {
-                if (!is_null(value) && value != last) {
+                if (value != last) {
                     lambda(value);
                     last = value;
                 }
@@ -444,10 +451,13 @@ public:
     }
 
     void for_values_of(const Key& key, const std::function<void(const Value&)>& lambda) {
+        if (key == 0 || key > max_key) {
+            return;
+        }
         size_t i = key_cbv_select(key);
-        size_t j = key_cbv_select(key+1);
-        for ( ; i < j; ++i) {
+        for ( ; i < n_records; ++i) {
             Entry entry = read_entry(i);
+            if (entry.key != key) break;
             if (!is_null(entry.value)) {
                 lambda(entry.value);
             }
