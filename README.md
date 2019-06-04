@@ -4,12 +4,12 @@
 
 This implements a memory backed multimap intended for use where:
 
-1. your keys are integers, or can be mapped to dense range of integers,
-2. the memory mapped file is on fast storage, like an SSD (although this is not a requirement),
-3. you have arbitrary values of fixed size (e.g. structs, other POD types) that can be sorted,
-4. you don't need dynamic updates of the table,
-5. and you are likely to run out of memory of you use a traditional map or hash table,
-6. but you can handle approximately 1 bit per record in RAM.
+- your keys are integers, or can be mapped to dense range of integers,
+- the memory mapped file is on fast storage, like an SSD (although this is not a requirement),
+- you have arbitrary values of fixed size (e.g. structs, other POD types) that can be sorted,
+- you don't need dynamic updates of the table,
+- and you are likely to run out of memory of you use a traditional map or hash table,
+- but you can handle approximately 1 bit per record in RAM.
 
 These may seem to be very specific, but many problems can be mapped into a dense integer set.
 `mmmultimap` developed first as a data structure to support [seqwish](https://github.com/ekg/seqwish), which uses it to generate precise variation graphs from pairwise alignments between collections of sequences.
