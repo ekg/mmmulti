@@ -81,7 +81,7 @@ rm -f x # removes test file
 ## development
 
 By adding a PMHF to the frontend, it should be possible to project arbitrary key sets into the dense range required by `mmmultimap` with only a few bits of overhead per entry.
-This would also obviate the need to pad our integer space.
+This would also obviate the need to pad our key space.
 
 ## author
 
