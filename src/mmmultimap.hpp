@@ -18,10 +18,10 @@
 #include "sdsl/bit_vectors.hpp"
 #include "ips4o.hpp"
 
-namespace mmmultimap {
+namespace mmmulti {
 
 /*
-'mmmultimap' is a disk-backed multimap where keys and values are stored
+'mmmulti::map' is a disk-backed multimap where keys and values are stored
 in a binary file. The key space is assumed to be numeric, but values
 may be of arbitrary size.  To build the multimap we first append
 key/value pairs.  To query the multimap we must first index it.  We
@@ -35,7 +35,7 @@ it We are now able to traverse the sorted array using select queries
 on this bitvector.
 */
 
-template <typename Key, typename Value> class multimap {
+template <typename Key, typename Value> class map {
 
 private:
     
@@ -137,11 +137,11 @@ private:
 public:
 
     // constructor
-    multimap(void) { init(); }
+    map(void) { init(); }
 
-    multimap(const std::string& f) : filename(f) { init(); open_writers(f); }
+    map(const std::string& f) : filename(f) { init(); open_writers(f); }
 
-    ~multimap(void) { close_writers(); }
+    ~map(void) { close_writers(); }
 
     void set_base_filename(const std::string& f) {
         filename = f;
