@@ -231,6 +231,11 @@ public:
         writer.write((char*)&v, sizeof(Value));
     }
 
+    /// return the number of records, which will only work after indexing
+    size_t size(void) {
+        return n_records;
+    }
+
     /// get the record count
     size_t record_count(void) {
         int fd = open(filename.c_str(), O_RDWR);
