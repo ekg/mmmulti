@@ -232,7 +232,7 @@ public:
     }
 
     /// return the number of records, which will only work after indexing
-    size_t size(void) {
+    size_t size(void) const {
         return n_records;
     }
 
@@ -268,7 +268,7 @@ public:
         sorted = true;
     }
 
-    Value read_value(size_t i) {
+    Value read_value(size_t i) const {
         Value v;
         memcpy(&v, &reader[i*sizeof(Value)], sizeof(Value));
         return v;
@@ -284,13 +284,13 @@ public:
         open_reader();
     }
 
-    void for_each_value(const std::function<void(const Value&)>& lambda) {
+    void for_each_value(const std::function<void(const Value&)>& lambda) const {
         for (size_t i = 0; i < n_records; ++i) {
             lambda(read_value(i));
         }
     }
 
-    void for_each_value_count(const std::function<void(const Value&, const uint64_t& count)>& lambda) {
+    void for_each_value_count(const std::function<void(const Value&, const uint64_t& count)>& lambda) const {
         assert(sorted);
         uint64_t curr_count = 0;
         bool first = true;

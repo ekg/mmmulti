@@ -299,7 +299,7 @@ public:
     }
 
     /// return the number of records, which will only work after indexing
-    size_t size(void) {
+    size_t size(void) const {
         return n_records;
     }
 
@@ -333,7 +333,7 @@ public:
         sorted = true;
     }
 
-    Entry read_entry(size_t i) {
+    Entry read_entry(size_t i) const {
         Entry e;
         memcpy(&e, &reader[i*record_size], sizeof(Entry));
         return e;
@@ -387,17 +387,17 @@ public:
         open_reader();
     }
 
-    Key nth_key(size_t n) {
+    Key nth_key(size_t n) const {
         Entry e = read_entry(n);
         return e.key;
     }
 
-    Value nth_value(size_t n) {
+    Value nth_value(size_t n) const {
         Entry e = read_entry(n);
         return e.value;
     }
 
-    void for_each_pair_parallel(const std::function<void(const Key&, const Value&)>& lambda) {
+    void for_each_pair_parallel(const std::function<void(const Key&, const Value&)>& lambda) const {
         Key key;
         Value value;
         Entry entry;
@@ -410,7 +410,7 @@ public:
         }
     }
 
-    void for_each_pair(const std::function<void(const Key&, const Value&)>& lambda) {
+    void for_each_pair(const std::function<void(const Key&, const Value&)>& lambda) const {
         Key key;
         Value value;
         Entry entry;
@@ -422,19 +422,19 @@ public:
         }
     }
     
-    std::vector<Value> values(const Key& key) {
+    std::vector<Value> values(const Key& key) const {
         std::vector<Value> values;
         for_values_of(key, [&values](const Value& v) { values.push_back(v); });
         return values;
     }
 
-    std::vector<Value> unique_values(const Key& key) {
+    std::vector<Value> unique_values(const Key& key) const {
         std::vector<Value> values;
         for_unique_values_of(key, [&values](const Value& v) { values.push_back(v); });
         return values;
     }
 
-    void for_unique_values_of(const Key& key, const std::function<void(const Value&)>& lambda) {
+    void for_unique_values_of(const Key& key, const std::function<void(const Value&)>& lambda) const {
         // quirk: if we've sorted by the whole binary record,
         // then we can do a simple 'uniq' operation to get the unique values
         Value last = nullvalue;
@@ -446,7 +446,7 @@ public:
             });
     }
 
-    bool is_null(const Value& value) {
+    bool is_null(const Value& value) const {
         for (size_t i = 0; i < sizeof(Value); ++i) {
             if (((uint8_t*)&value)[i] != 0) {
                 return false;
@@ -455,7 +455,7 @@ public:
         return true;
     }
 
-    void for_values_of(const Key& key, const std::function<void(const Value&)>& lambda) {
+    void for_values_of(const Key& key, const std::function<void(const Value&)>& lambda) const {
         if (key == 0 || key > max_key) {
             return;
         }
