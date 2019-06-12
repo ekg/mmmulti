@@ -109,13 +109,22 @@ int main(int argc, char** argv) {
         uint64_t i = 0;
         uint64_t value_count = 0;
         uint64_t unique_value_count = 0;
+        uint64_t sum1 = 0;
         // exercise unique value search
         ms.for_each_value_count([&](const uint64_t& value, const uint64_t& count) {
                 ++unique_value_count;
                 value_count += count;
+                sum1 += count * value;
             });
+        uint64_t second_count = 0;
+        uint64_t sum2 = 0;
+        for (auto v = ms.begin(); v != ms.end(); ++v) {
+            ++second_count;
+            sum2 += *v;
+        }
         std::cerr << value_count << " values, expected " << x_len << std::endl;
         std::cerr << unique_value_count << " unique pairs" << std::endl;
+        std::cerr << "sums " << sum1 << " " << sum2 << std::endl;
     }
 
     return 0;

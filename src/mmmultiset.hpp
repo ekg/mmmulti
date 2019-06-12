@@ -236,6 +236,18 @@ public:
         return n_records;
     }
 
+    /// iterator to first value
+    typename std::vector<Value>::iterator begin(void) const {
+        typename std::vector<Value>::iterator begin_ptr((Value*)reader);
+        return begin_ptr;
+    }
+
+    /// iterator to one past end
+    typename std::vector<Value>::iterator end(void) const {
+        typename std::vector<Value>::iterator end_ptr((Value*)reader+n_records);
+        return end_ptr;
+    }
+
     /// return the size of each combined record
     size_t get_record_size(void) const {
         return sizeof(Value);
