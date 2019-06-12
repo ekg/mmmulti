@@ -303,6 +303,16 @@ public:
         return n_records;
     }
 
+    /// return the size of each combined record
+    size_t get_record_size(void) const {
+        return record_size;
+    }
+
+    /// return the backing buffer
+    char* get_buffer(void) const {
+        return reader;
+    }
+
     /// get the record count
     size_t record_count(void) {
         int fd = open(filename.c_str(), O_RDWR);
