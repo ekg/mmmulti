@@ -408,27 +408,22 @@ public:
     }
 
     void for_each_pair_parallel(const std::function<void(const Key&, const Value&)>& lambda) const {
-        Key key;
-        Value value;
-        Entry entry;
 #pragma omp parallel for schedule(dynamic)
         for (size_t i = 0; i < n_records; ++i) {
-            entry = read_entry(i);
-            key = entry.key;
-            value = entry.value;
-            lambda(key, value);
+            Entry entry = read_entry(i);
+            if (!is_null(entry.value)) {
+                lambda(entry.key, entry.value);
+            }
         }
     }
 
     void for_each_pair(const std::function<void(const Key&, const Value&)>& lambda) const {
-        Key key;
-        Value value;
         Entry entry;
         for (size_t i = 0; i < n_records; ++i) {
             entry = read_entry(i);
-            key = entry.key;
-            value = entry.value;
-            lambda(key, value);
+            if (!is_null(entry.value)) {
+                lambda(entry.key, entry.value);
+            }
         }
     }
     
