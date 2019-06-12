@@ -112,6 +112,7 @@ private:
     std::string filename;
     std::string index_filename;
     bool sorted = false;
+    bool padded = false;
     size_t record_size = 0;
     // key information
     Key max_key = 0;
@@ -361,37 +362,51 @@ public:
         }
         sync_writers();
         sort();
+        padded = true;
+    }
+
+    void simplesort(void) {
+        close_reader();
+        sync_writers();
+        sort();
+        padded = false;
     }
 
     // index
-    void index(Key new_max) {
-        max_key = new_max;
-        padsort();
+    void index(Key new_max = 0) {
+        if (new_max) {
+            max_key = new_max;
+            padsort();
+        } else {
+            simplesort();
+        }
         open_reader();
         n_records = record_count();
-        sdsl::bit_vector key_bv(n_records+1);
-        // record the key starts
-        Key last = nullkey, curr = nullkey;
-        Value val = nullvalue;
-        Entry entry;
-        //reader.read((char*)&last, sizeof(Key));
-        for (size_t i = 0; i < n_records; ++i) {
-            entry = read_entry(i);
-            curr = entry.key;
-            val = entry.value;
-            if (curr != last) {
-                key_bv[i] = 1;
+        if (padded) {
+            sdsl::bit_vector key_bv(n_records+1);
+            // record the key starts
+            Key last = nullkey, curr = nullkey;
+            Value val = nullvalue;
+            Entry entry;
+            //reader.read((char*)&last, sizeof(Key));
+            for (size_t i = 0; i < n_records; ++i) {
+                entry = read_entry(i);
+                curr = entry.key;
+                val = entry.value;
+                if (curr != last) {
+                    key_bv[i] = 1;
+                }
+                last = curr;
             }
-            last = curr;
+            // the last key in the sort is our max key
+            max_key = nth_key(n_records-1);
+            key_bv[n_records] = 1; // sentinel
+            // build the compressed bitvector
+            sdsl::util::assign(key_cbv, sdsl::sd_vector<>(key_bv));
+            key_bv.resize(0); // memory could be tight
+            // build the select supports on the key bitvector
+            sdsl::util::assign(key_cbv_select, sdsl::sd_vector<>::select_1_type(&key_cbv));
         }
-        // the last key in the sort is our max key
-        max_key = nth_key(n_records-1);
-        key_bv[n_records] = 1; // sentinel
-        // build the compressed bitvector
-        sdsl::util::assign(key_cbv, sdsl::sd_vector<>(key_bv));
-        key_bv.resize(0); // memory could be tight
-        // build the select supports on the key bitvector
-        sdsl::util::assign(key_cbv_select, sdsl::sd_vector<>::select_1_type(&key_cbv));
         indexed = true;
         close_reader();
         open_reader();
@@ -411,7 +426,7 @@ public:
 #pragma omp parallel for schedule(dynamic)
         for (size_t i = 0; i < n_records; ++i) {
             Entry entry = read_entry(i);
-            if (!is_null(entry.value)) {
+            if (!padded || !is_null(entry.value)) {
                 lambda(entry.key, entry.value);
             }
         }
@@ -421,7 +436,7 @@ public:
         Entry entry;
         for (size_t i = 0; i < n_records; ++i) {
             entry = read_entry(i);
-            if (!is_null(entry.value)) {
+            if (!padded || !is_null(entry.value)) {
                 lambda(entry.key, entry.value);
             }
         }
@@ -461,7 +476,7 @@ public:
     }
 
     void for_values_of(const Key& key, const std::function<void(const Value&)>& lambda) const {
-        if (key == 0 || key > max_key) {
+        if (!padded || key == 0 || key > max_key) {
             return;
         }
         size_t i = key_cbv_select(key);
