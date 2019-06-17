@@ -386,7 +386,7 @@ public:
     private:
         Value* ptr;
         
-        friend class iterator;
+        friend class const_iterator;
     };
     
     /// a local reimplementation of a const pointer iterator
