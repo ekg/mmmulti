@@ -109,8 +109,13 @@ private:
     bool indexed = false;
     uint32_t OUTPUT_VERSION = 1; // update as we change our format
 
+    
 public:
 
+    // forward declaration for iterator types
+    class iterator;
+    class const_iterator;
+    
     // constructor
     set(void) { }
 
@@ -235,17 +240,25 @@ public:
     size_t size(void) const {
         return n_records;
     }
-
+    
     /// iterator to first value
-    typename std::vector<Value>::iterator begin(void) const {
-        typename std::vector<Value>::iterator begin_ptr((Value*)reader);
-        return begin_ptr;
+    iterator begin(void) {
+        return iterator((Value*)reader);
+    }
+    
+    /// iterator to one past end
+    iterator end(void) {
+        return iterator(((Value*)reader)+n_records);
     }
 
-    /// iterator to one past end
-    typename std::vector<Value>::iterator end(void) const {
-        typename std::vector<Value>::iterator end_ptr((Value*)reader+n_records);
-        return end_ptr;
+    /// const iterator to first value
+    const_iterator begin(void) const {
+        return const_iterator((Value*)reader);
+    }
+
+    /// const iterator to one past end
+    const_iterator end(void) const {
+        return const_iterator(((Value*)reader)+n_records);
     }
 
     /// return the size of each combined record
@@ -281,11 +294,10 @@ public:
         //std::cerr << "sorting!" << std::endl;
         mmap_buffer_t buffer;
         open_mmap_buffer(filename.c_str(), &buffer);
-        typename std::vector<Value>::iterator begin_ptr((Value*)buffer.data);
         uint64_t data_len = buffer.size/sizeof(Value);
-        typename std::vector<Value>::iterator end_ptr((Value*)buffer.data+data_len);
         // sort in parallel (uses OpenMP if available, std::thread otherwise)
-        ips4o::parallel::sort(begin_ptr, end_ptr);
+        ips4o::parallel::sort((Value*)buffer.data,
+                              ((Value*)buffer.data)+data_len);
         close_mmap_buffer(&buffer);
         sorted = true;
     }
@@ -330,6 +342,100 @@ public:
             });
         lambda(last, curr_count);
     }
+    
+    /// a local reimplementation of a pointer iterator
+    class iterator {
+    public:
+        iterator(Value* ptr) : ptr(ptr) {}
+        iterator() : ptr(nullptr) {}
+        iterator(const set<Value>::iterator& other) : ptr(other.ptr) {}
+        iterator& operator=(const set<Value>::iterator& other) {
+            ptr = other.ptr;
+        }
+        
+        Value& operator*() {
+            return *ptr;
+        }
+        
+        bool operator==(const set<Value>::iterator& other) {
+            return ptr == other.ptr;
+        }
+        
+        bool operator!=(const set<Value>::iterator& other) {
+            return !(*this == other);
+        }
+        
+        iterator& operator++() {
+            ++ptr;
+            return *this;
+        }
+        
+        iterator operator++(int) {
+            return iterator(ptr++);
+        }
+        
+        iterator& operator--() {
+            --ptr;
+            return *this;
+        }
+        
+        iterator operator--(int) {
+            return iterator(ptr--);
+        }
+        
+    private:
+        Value* ptr;
+        
+        friend class iterator;
+    };
+    
+    /// a local reimplementation of a const pointer iterator
+    class const_iterator {
+    public:
+        const_iterator(const Value* ptr) : ptr(ptr) {}
+        const_iterator() : ptr(nullptr) {}
+        const_iterator(const set<Value>::const_iterator& other) : ptr(other.ptr) {}
+        const_iterator& operator=(const set<Value>::const_iterator& other) {
+            ptr = other.ptr;
+        }
+        const_iterator(const set<Value>::iterator& other) : ptr(other.ptr) {}
+        const_iterator& operator=(const set<Value>::iterator& other) {
+            ptr = other.ptr;
+        }
+        
+        const Value& operator*() {
+            return *ptr;
+        }
+        
+        bool operator==(const set<Value>::const_iterator& other) {
+            return ptr == other.ptr;
+        }
+        
+        bool operator!=(const set<Value>::const_iterator& other) {
+            return !(*this == other);
+        }
+        
+        const_iterator& operator++() {
+            ++ptr;
+            return *this;
+        }
+        
+        const_iterator operator++(int) {
+            return const_iterator(ptr++);
+        }
+        
+        const_iterator& operator--() {
+            --ptr;
+            return *this;
+        }
+        
+        const_iterator operator--(int) {
+            return const_iterator(ptr--);
+        }
+        
+    private:
+        const Value* ptr;
+    };
 };
 
 }
