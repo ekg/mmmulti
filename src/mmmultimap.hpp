@@ -136,6 +136,10 @@ private:
     }
 
 public:
+    
+    // forward declaration for iterator types
+    class iterator;
+    class const_iterator;
 
     // constructor
     map(void) { init(); }
@@ -335,11 +339,10 @@ public:
         //std::cerr << "sorting!" << std::endl;
         mmap_buffer_t buffer;
         open_mmap_buffer(filename.c_str(), &buffer);
-        typename std::vector<std::pair<Key, Value>>::iterator begin_ptr((std::pair<Key, Value>*)buffer.data);
         uint64_t data_len = buffer.size/record_size;
-        typename std::vector<std::pair<Key, Value>>::iterator end_ptr((std::pair<Key, Value>*)buffer.data+data_len);
         // sort in parallel (uses OpenMP if available, std::thread otherwise)
-        ips4o::parallel::sort(begin_ptr, end_ptr);
+        ips4o::parallel::sort((std::pair<Key, Value>*)buffer.data,
+                              ((std::pair<Key, Value>*)buffer.data)+data_len);
         close_mmap_buffer(&buffer);
         sorted = true;
     }
