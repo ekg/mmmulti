@@ -76,8 +76,8 @@ set(dynamic_INCLUDE "${INSTALL_DIR}/src/dynamic/include")
 
 # In-place Parallel Super Scalar Samplesort (IPS⁴o), header only
 ExternalProject_Add(ips4o
-  GIT_REPOSITORY "https://github.com/SaschaWitt/ips4o.git"
-  GIT_TAG "bff3ccf0bf349497f2bb10f825d160b792236367"
+  GIT_REPOSITORY "https://github.com/vgteam/ips4o.git"
+  GIT_TAG "aac5119bcaf4cedaf3ebb9171f3fc23af4e350d6"
   UPDATE_COMMAND ""
   INSTALL_COMMAND ""
   BUILD_COMMAND ""
