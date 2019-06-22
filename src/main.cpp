@@ -44,7 +44,7 @@ int main(int argc, char** argv) {
         omp_set_num_threads(args::get(threads));
     }
 
-    if (!args::get(test_file).empty() && !args::get(test_multiset)) {
+    if (!args::get(test_file).empty() && !args::get(test_multiset) && !args::get(test_iitree)) {
         if (args::get(test_complex)) {
             std::random_device rd;  //Will be used to obtain a seed for the random number engine
             std::mt19937 gen(rd()); //Standard mersenne_twister_engine seeded with rd()
@@ -181,7 +181,6 @@ int main(int argc, char** argv) {
             std::cerr << unique_value_count << " unique pairs" << std::endl;
             if (unique_value_test_count) std::cerr << elapsed_seconds.count()/unique_value_test_count << "s per unique value call" << std::endl;
         }
-        
     } else if (!args::get(test_file).empty() && args::get(test_multiset)) {
         std::random_device rd;  //Will be used to obtain a seed for the random number engine
         std::mt19937 gen(rd()); //Standard mersenne_twister_engine seeded with rd()
@@ -216,34 +215,37 @@ int main(int argc, char** argv) {
         std::cerr << value_count << " values, expected " << x_len << std::endl;
         std::cerr << unique_value_count << " unique pairs" << std::endl;
         std::cerr << "sums " << sum1 << " " << sum2 << std::endl;
-        //} else if (!args::get(test_file).empty() && args::get(test_iitree)) {
-    } else if (args::get(test_iitree)) {
-        mmmulti::iitree<uint64_t, uint64_t> tree;
+    } else if (!args::get(test_file).empty() && args::get(test_iitree)) {
+        //} else if (args::get(test_iitree)) {
+        std::remove(args::get(test_file).c_str());
+        mmmulti::iitree<uint64_t, uint64_t> tree(args::get(test_file));
         std::random_device rd;  //Will be used to obtain a seed for the random number engine
         std::mt19937 gen(rd()); //Standard mersenne_twister_engine seeded with rd()
         uint64_t max_value = args::get(max_val);
         std::uniform_int_distribution<uint64_t> dis(0, max_value);
         uint64_t x_len = args::get(test_size);
-//#pragma omp parallel for
+#pragma omp parallel for
         for (int n=0; n<x_len; ++n) {
             uint64_t q = dis(gen);
-            uint64_t r = dis(gen);
-            uint64_t a = std::min(q, r);
-            uint64_t b = std::max(q, r);
+            uint64_t r = std::min(q + 100, max_value);
+            //uint64_t a = std::min(q, r);
+            //uint64_t b = std::max(q, r);
             //std::cerr << a << ", " << b << std::endl;q
-            tree.add(a, b, dis(gen));
+            tree.add(q, r, dis(gen));
         }
         tree.index();
         for (int n=0; n<max_value; ++n) {
             std::vector<size_t> ovlp;
             tree.overlap(n, n+1, ovlp);
-            std::cerr << n << " has " << ovlp.size() << " overlaps" << std::endl;
+            if (n % 1000 == 0) std::cerr << n << "\r";
+            //std::cerr << n << " has " << ovlp.size() << " overlaps" << std::endl;
             for (auto& s : ovlp) {
                 if (tree.start(s) > n || tree.end(s) < n) {
                     std::cerr << "tree broken at " << n << std::endl;
                 }
             }
         }
+        std::cerr << std::endl;
     }
 
     return 0;
