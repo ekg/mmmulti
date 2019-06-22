@@ -38,6 +38,9 @@
  * As a sorted array can be considered as a binary search tree, we can
  * implement an interval tree on top of the idea. We only need to record, for
  * each node, the maximum value in the subtree descending from the node.
+ *
+ * This implementation allows the interval array to be stored in a memory
+ * mapped file on disk. I've got a real lot of intervals to process. -EG
  */
 namespace mmmulti {
 
