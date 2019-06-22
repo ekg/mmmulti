@@ -8,6 +8,7 @@
 #include <utility>
 #include "mmmultimap.hpp"
 #include "mmmultiset.hpp"
+#include "mmiitree.hpp"
 
 int main(int argc, char** argv) {
 
@@ -22,6 +23,7 @@ int main(int argc, char** argv) {
     args::Flag test_multiset(parser, "multiset", "test the multiset", {'m', "test-multiset"});
     args::Flag test_complex(parser, "complex", "test the multimap with complex values", {'c', "test-complex-values"});
     args::Flag test_unpadded(parser, "unpadded", "test the multimap without padding for random access", {'P', "test-unpadded"});
+    args::Flag test_iitree(parser, "iitree", "test the iitree from cranges", {'I', "test-iitree"});
 
     try {
         parser.ParseCLI(argc, argv);
@@ -214,6 +216,34 @@ int main(int argc, char** argv) {
         std::cerr << value_count << " values, expected " << x_len << std::endl;
         std::cerr << unique_value_count << " unique pairs" << std::endl;
         std::cerr << "sums " << sum1 << " " << sum2 << std::endl;
+        //} else if (!args::get(test_file).empty() && args::get(test_iitree)) {
+    } else if (args::get(test_iitree)) {
+        mmmulti::iitree<uint64_t, uint64_t> tree;
+        std::random_device rd;  //Will be used to obtain a seed for the random number engine
+        std::mt19937 gen(rd()); //Standard mersenne_twister_engine seeded with rd()
+        uint64_t max_value = args::get(max_val);
+        std::uniform_int_distribution<uint64_t> dis(0, max_value);
+        uint64_t x_len = args::get(test_size);
+//#pragma omp parallel for
+        for (int n=0; n<x_len; ++n) {
+            uint64_t q = dis(gen);
+            uint64_t r = dis(gen);
+            uint64_t a = std::min(q, r);
+            uint64_t b = std::max(q, r);
+            //std::cerr << a << ", " << b << std::endl;q
+            tree.add(a, b, dis(gen));
+        }
+        tree.index();
+        for (int n=0; n<max_value; ++n) {
+            std::vector<size_t> ovlp;
+            tree.overlap(n, n+1, ovlp);
+            std::cerr << n << " has " << ovlp.size() << " overlaps" << std::endl;
+            for (auto& s : ovlp) {
+                if (tree.start(s) > n || tree.end(s) < n) {
+                    std::cerr << "tree broken at " << n << std::endl;
+                }
+            }
+        }
     }
 
     return 0;
