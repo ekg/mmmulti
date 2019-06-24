@@ -325,7 +325,7 @@ public:
         if (-1 == fstat(fd, &stats)) {
             assert(false);
         }
-        assert(stats.st_size % record_size == 0); // must be even records
+        assert(stats.st_size % sizeof(Interval) == 0); // must be even records
         size_t count = stats.st_size / sizeof(Interval);
         return count;
     }
