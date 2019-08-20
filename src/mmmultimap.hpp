@@ -146,7 +146,7 @@ public:
 
     map(const std::string& f) : filename(f) { init(); open_writers(f); }
 
-    ~map(void) { close_writers(); }
+    ~map(void) { close_writers(); close_reader(); }
 
     void set_base_filename(const std::string& f) {
         filename = f;
@@ -330,6 +330,7 @@ public:
         }
         assert(stats.st_size % record_size == 0); // must be even records
         size_t count = stats.st_size / record_size;
+        close(fd);
         return count;
     }
 
