@@ -121,7 +121,7 @@ public:
 
     set(const std::string& f) : filename(f) { open_writers(f); }
 
-    ~set(void) { close_writers(); }
+    ~set(void) { close_writers(); close_reader();}
 
     void set_base_filename(const std::string& f) {
         filename = f;
@@ -283,6 +283,7 @@ public:
         }
         assert(stats.st_size % record_size == 0); // must be even records
         size_t count = stats.st_size / sizeof(Value);
+        close(fd);
         return count;
     }
 

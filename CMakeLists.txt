@@ -69,7 +69,7 @@ include(${CMAKE_ROOT}/Modules/ExternalProject.cmake)
 # sdsl-lite (full build using its cmake config)
 ExternalProject_Add(sdsl-lite
   GIT_REPOSITORY "https://github.com/simongog/sdsl-lite.git"
-  GIT_TAG "d52aa9a71513d132e30c09491b5899af449ebb94"
+  GIT_TAG "ddb0fbbc33bb183baa616f17eb48e261ac2a3672"
   CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:PATH=${INSTALL_DIR} # TODO ADD static build flag
   UPDATE_COMMAND ""
   INSTALL_COMMAND "")
