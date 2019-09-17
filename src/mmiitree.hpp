@@ -10,7 +10,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
-//#include "ips4o.hpp"
+#include "ips4o.hpp"
 
 /* Suppose there are N=2^(K+1)-1 sorted numbers in an array a[]. They
  * implicitly form a complete binary tree of height K+1. We consider leaves to
