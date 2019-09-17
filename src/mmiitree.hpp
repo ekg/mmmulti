@@ -2,6 +2,7 @@
 
 #include <vector>
 #include <algorithm>
+#include <iostream>
 #include <fcntl.h>
 #include <cstdio>
 #include <cstdlib>
