@@ -7,6 +7,8 @@
 #include <fcntl.h>
 #include <cstdio>
 #include <cstdlib>
+#include <cstring>
+#include <cassert>
 #include <sys/mman.h>
 #include <sys/stat.h>
 #include <sys/types.h>
