@@ -230,7 +230,7 @@ int main(int argc, char** argv) {
             uint64_t r = std::min(q + 100, max_value);
             //uint64_t a = std::min(q, r);
             //uint64_t b = std::max(q, r);
-            //std::cerr << a << ", " << b << std::endl;q
+            //std::cerr << q << ", " << r << std::endl;
             tree.add(q, r, dis(gen));
         }
         tree.index();
@@ -245,7 +245,12 @@ int main(int argc, char** argv) {
                 }
             }
         }
-        std::cerr << std::endl;
+        /*
+        tree.for_each_entry([&](const mmmulti::iitree<uint64_t, uint64_t>::Interval& ival) {
+                std::cerr << ival.st << ".." << ival.en << " " << ival.data << std::endl;
+            });
+        */
+        //std::cerr << std::endl;
     }
 
     return 0;

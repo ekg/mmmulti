@@ -57,11 +57,16 @@ class iitree {
 		StackCell() {};
 		StackCell(int k_, size_t x_, int w_) : x(x_), k(k_), w(w_) {};
 	};
+
+public:
 	struct Interval {
 		S st, en, max;
 		T data;
+        Interval(void) {};
 		Interval(const S &s, const S &e, const T &d) : st(s), en(e), max(e), data(d) {};
 	};
+
+private:
 	struct IntervalLess {
 		bool operator()(const Interval &a, const Interval &b) const { return a.st < b.st; }
 	};
@@ -357,13 +362,13 @@ public:
         return v;
     }
 
-    void for_each_value(const std::function<void(const Interval&)>& lambda) const {
+    void for_each_entry(const std::function<void(const Interval&)>& lambda) const {
         for (size_t i = 0; i < n_records; ++i) {
             lambda(read_value(i));
         }
     }
 
-    void for_each_value_count(const std::function<void(const Interval&, const uint64_t& count)>& lambda) const {
+    void for_each_entry_count(const std::function<void(const Interval&, const uint64_t& count)>& lambda) const {
         assert(sorted);
         uint64_t curr_count = 0;
         bool first = true;
