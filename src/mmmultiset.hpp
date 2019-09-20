@@ -343,7 +343,23 @@ public:
             });
         lambda(last, curr_count);
     }
-    
+
+    void for_each_unique_value(const std::function<void(const Value&)>& lambda) const {
+        assert(sorted);
+        bool first = true;
+        Value last;
+        for_each_value([&](const Value& v) {
+                if (first) {
+                    last = v;
+                    first = false;
+                } else if (v != last) {
+                    lambda(last);
+                    last = v;
+                }
+            });
+        lambda(last);
+    }
+
     /// a local reimplementation of a pointer iterator
     class iterator {
     public:
