@@ -211,6 +211,11 @@ public:
         // close the temp writers and cat them onto the end of the main file
         if (single_threaded) {
             std::rename(writer_filename(writer_that_wrote).c_str(), filename.c_str());
+            for (size_t i = 0; i < writers.size(); ++i) {
+                if (i != writer_that_wrote) {
+                    std::remove(writer_filename(i).c_str());
+                }
+            }
         } else {
             open_main_writer();
             for (size_t i = 0; i < writers.size(); ++i) {
