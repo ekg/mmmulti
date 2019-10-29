@@ -261,17 +261,34 @@ public:
     }
     
     void sync_writers(void) {
-        // close the temp writers and cat them onto the end of the main file
-        open_main_writer();
+        // check to see if we ran single-threaded
+        uint64_t used_writers = 0;
+        uint64_t writer_that_wrote = 0;
         for (size_t i = 0; i < writers.size(); ++i) {
             writers[i].close();
-            std::ifstream if_w(writer_filename(i), std::ios_base::binary);
-            writer << if_w.rdbuf();
-            if_w.close();
-            std::remove(writer_filename(i).c_str());
+            if (filesize(writer_filename(i).c_str())) {
+                ++used_writers;
+                writer_that_wrote = i;
+            }
+        }
+        bool single_threaded = used_writers > 1;
+        // close the temp writers and cat them onto the end of the main file
+        if (single_threaded) {
+            std::rename(writer_filename(writer_that_wrote).c_str(), filename.c_str());
+        } else {
+            open_main_writer();
+            for (size_t i = 0; i < writers.size(); ++i) {
+                std::ifstream if_w(writer_filename(i), std::ios_base::binary);
+                writer << if_w.rdbuf();
+                if_w.close();
+                std::remove(writer_filename(i).c_str());
+            }
         }
         writers.clear();
         writer.close();
+        for (size_t i = 0; i < writers.size(); ++i) {
+            std::remove(writer_filename(i).c_str());
+        }
     }
 
     void close_writers(void) {
@@ -337,6 +354,11 @@ public:
         assert(stats.st_size % sizeof(Interval) == 0); // must be even records
         size_t count = stats.st_size / sizeof(Interval);
         return count;
+    }
+
+    std::ifstream::pos_type filesize(const char* filename) {
+        std::ifstream in(filename, std::ifstream::ate | std::ifstream::binary);
+        return in.tellg();
     }
 
     /// sort the record in the backing file by key
