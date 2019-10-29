@@ -207,7 +207,7 @@ public:
                 writer_that_wrote = i;
             }
         }
-        bool single_threaded = used_writers > 1;
+        bool single_threaded = used_writers == 1;
         // close the temp writers and cat them onto the end of the main file
         if (single_threaded) {
             std::rename(writer_filename(writer_that_wrote).c_str(), filename.c_str());
