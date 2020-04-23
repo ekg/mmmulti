@@ -149,16 +149,16 @@ private:
     uint32_t OUTPUT_VERSION = 1; // update as we change our format
 
     //std::vector<Interval> a;
-	int max_level = 0;
+	uint64_t max_level = 0;
     
-	int index_core(Interval* a, size_t a_size) {
+	uint64_t index_core(Interval* a, size_t a_size) {
 		size_t i, last_i; // last_i points to the rightmost node in the tree
 		S last; // last is the max value at node last_i
-		int k;
+		int64_t k;
 		if (a_size == 0) return -1;
 		for (i = 0; i < a_size; i += 2) last_i = i, last = a[i].max = a[i].en; // leaves (i.e. at level 0)
-		for (k = 1; 1LL<<k <= a_size; ++k) { // process internal nodes in the bottom-up order
-			size_t x = 1LL<<(k-1), i0 = (x<<1) - 1, step = x<<2; // i0 is the first node
+		for (k = 1; ((int64_t)1)<<k <= a_size; ++k) { // process internal nodes in the bottom-up order
+			size_t x = ((int64_t)1)<<(k-1), i0 = (x<<1) - 1, step = x<<2; // i0 is the first node
 			for (i = i0; i < a_size; i += step) { // traverse all nodes at level k
 				S el = a[i - x].max;                          // max value of the left child
 				S er = i + x < a_size? a[i + x].max : last; // of the right child
@@ -441,7 +441,7 @@ public:
             return *this;
         }
         
-        iterator operator++(int) {
+        iterator operator++(int64_t) {
             return iterator(ptr++);
         }
         
@@ -450,7 +450,7 @@ public:
             return *this;
         }
         
-        iterator operator--(int) {
+        iterator operator--(int64_t) {
             return iterator(ptr--);
         }
         
@@ -491,7 +491,7 @@ public:
             return *this;
         }
         
-        const_iterator operator++(int) {
+        const_iterator operator++(int64_t) {
             return const_iterator(ptr++);
         }
         
@@ -500,7 +500,7 @@ public:
             return *this;
         }
         
-        const_iterator operator--(int) {
+        const_iterator operator--(int64_t) {
             return const_iterator(ptr--);
         }
         
@@ -529,7 +529,7 @@ public:
 		max_level = index_core(get_array(), n_records);
 	}
 	void overlap(const S &st, const S &en, std::vector<size_t> &out) const {
-		int t = 0;
+		int64_t t = 0;
 		StackCell stack[64];
         Interval* a = get_array();
 		out.clear();
