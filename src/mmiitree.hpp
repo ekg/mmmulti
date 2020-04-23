@@ -441,7 +441,7 @@ public:
             return *this;
         }
         
-        iterator operator++(int64_t) {
+        iterator operator++(int) {
             return iterator(ptr++);
         }
         
@@ -450,7 +450,7 @@ public:
             return *this;
         }
         
-        iterator operator--(int64_t) {
+        iterator operator--(int) {
             return iterator(ptr--);
         }
         
@@ -491,7 +491,7 @@ public:
             return *this;
         }
         
-        const_iterator operator++(int64_t) {
+        const_iterator operator++(int) {
             return const_iterator(ptr++);
         }
         
@@ -500,7 +500,7 @@ public:
             return *this;
         }
         
-        const_iterator operator--(int64_t) {
+        const_iterator operator--(int) {
             return const_iterator(ptr--);
         }
         
