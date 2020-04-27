@@ -124,7 +124,7 @@ private:
     sdsl::sd_vector<>::select_1_type key_cbv_select;
     bool indexed = false;
     uint32_t OUTPUT_VERSION = 1; // update as we change our format
-    std::thread* writer_thread = nullptr;
+    std::thread writer_thread;
     atomic_queue::AtomicQueue2<Entry, 2 << 16>* entry_queue = nullptr;
     std::atomic<bool> work_todo;
 
@@ -197,6 +197,21 @@ public:
         return written;
     }
 
+    void writer_func(void) {
+        Entry entry;
+        while (work_todo.load() || !entry_queue->was_empty()) {
+            if (entry_queue->try_pop(entry)) {
+                do {
+                    writer.write((char*)&entry, sizeof(Entry));
+                } while (entry_queue->try_pop(entry));
+            } else {
+                std::this_thread::sleep_for(std::chrono::nanoseconds(1));
+            }
+        }
+        writer.close();
+    }
+
+    // close/open backing file
     void open_writer(void) {
         if (writer.is_open()) {
             writer.seekp(0, std::ios_base::end); // seek to the end for appending
@@ -210,31 +225,18 @@ public:
         }
         entry_queue = new atomic_queue::AtomicQueue2<Entry, 2 << 16>;
         work_todo.store(true);
-        auto writer_lambda =
-            [&](void) {
-                Entry entry;
-                while (work_todo.load()) {
-                    if (work_todo.load() || !entry_queue->was_empty()) {
-                        do {
-                            writer.write((char*)&entry, sizeof(Entry));
-                        } while (entry_queue->try_pop(entry));
-                    } else {
-                        std::this_thread::sleep_for(0.001ns);
-                    }
-                }
-            };
-        writer_thread = new std::thread(writer_lambda);
+        writer_thread = std::thread(&map::writer_func, this);
     }
 
     void close_writer(void) {
-        if (writer_thread != nullptr) {
+        if (work_todo.load()) {
             work_todo.store(false);
-            writer_thread->join();
-            delete writer_thread;
-            writer_thread = nullptr;
+            std::this_thread::sleep_for(1ms);
+            if (writer_thread.joinable()) {
+                writer_thread.join();
+            }
             delete entry_queue;
             entry_queue = nullptr;
-            writer.close();
         }
     }
 
@@ -275,10 +277,8 @@ public:
     }
 
     /// write the pair to the backing file
+    /// open_writer() must be called first to set up our buffer and writer
     void append(const Key& k, const Value& v) {
-        if (entry_queue == nullptr) {
-            open_writer();
-        }
         entry_queue->push((Entry){k, v});
     }
 

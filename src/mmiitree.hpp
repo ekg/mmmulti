@@ -50,8 +50,6 @@
  */
 namespace mmmulti {
 
-using namespace std::chrono_literals;
-
 template<typename S, typename T> // "S" is a scalar type; "T" is the type of data associated with each interval
 class iitree {    
 
@@ -197,7 +195,7 @@ public:
                     writer.write((char*)&ival, sizeof(Interval));
                 } while (interval_queue->try_pop(ival));
             } else {
-                std::this_thread::sleep_for(0.001ns);
+                std::this_thread::sleep_for(std::chrono::nanoseconds(1));
             }
         }
         writer.close();
@@ -468,11 +466,9 @@ public:
     }
 
 public:
+    /// write into our write buffer
+    /// open_writer() must be called first to set up our buffer and writer
 	void add(const S &s, const S &e, const T &d) {
-        // write into our write buffer, spawn the thread to process this
-        if (interval_queue == nullptr) {
-            open_writer();
-        }
         interval_queue->push((Interval){s, e, d});
     }
 
