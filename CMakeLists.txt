@@ -7,43 +7,12 @@ project(mmmultimap)
 # We build using c++14
 set(CMAKE_CXX_STANDARD 14)
 
+#set(THREADS_PREFER_PTHREAD_FLAG ON)
+find_package(Threads REQUIRED)
+
 # Use all standard-compliant optimizations
-set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -g")
-set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -g")
-
-if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-
-  # assumes clang build
-  # we can't reliably detect when we're using clang, so for the time being we assume
-  # TODO: can't we though?
-  
-  # adapted from https://stackoverflow.com/questions/46414660/macos-cmake-and-openmp
-  # find_package(OpenMP) does not work reliably on macOS, so we do its work ourselves
-  set (OpenMP_C "${CMAKE_C_COMPILER}")
-  set (OpenMP_C_FLAGS " -Xpreprocessor -fopenmp -I/opt/local/include/libomp -I/usr/local/include -L/opt/local/lib/libomp -L/usr/local/lib")
-  set (OpenMP_C_LIB_NAMES "libomp" "libgomp" "libiomp5")
-  set (OpenMP_CXX "${CMAKE_CXX_COMPILER}")
-  set (OpenMP_CXX_FLAGS " -Xpreprocessor -fopenmp -I/opt/local/include/libomp -I/usr/local/include -L/opt/local/lib/libomp -L/usr/local/lib")
-  set (OpenMP_CXX_LIB_NAMES "libomp" "libgomp" "libiomp5")
-  set (OpenMP_libomp_LIBRARY "omp")
-  set (OpenMP_libgomp_LIBRARY "gomp")
-  set (OpenMP_libiomp5_LIBRARY "iomp5")
-  
-  # and now add the OpenMP parameters to the compile flags
-  set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS}")
-  set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS}")
-  set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS} -lomp")
-  
-elseif (${CMAKE_SYSTEM_NAME} MATCHES "Linux")
-
-  find_package(OpenMP REQUIRED)
-  
-  # add the flags it detects to the compile flags
-  set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} ${OpenMP_C_FLAGS} -fopenmp")
-  set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} ${OpenMP_CXX_FLAGS} -fopenmp")
-  set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} ${OpenMP_EXE_LINKER_FLAGS}")
-  
-endif()
+set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -mcx16 -g")
+set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -mcx16 -g")
 
 # Set the output folder where your program will be created
 set(CMAKE_BINARY_DIR ${CMAKE_SOURCE_DIR}/bin)
@@ -94,14 +63,27 @@ set(dynamic_INCLUDE "${INSTALL_DIR}/src/dynamic/include")
 
 # In-place Parallel Super Scalar Samplesort (IPS⁴o), header only
 ExternalProject_Add(ips4o
-  GIT_REPOSITORY "https://github.com/vgteam/ips4o.git"
-  GIT_TAG "22069381cc1bf2df07ee1ff47f6b6073fcfb4508"
+  GIT_REPOSITORY "https://github.com/SaschaWitt/ips4o.git"
+  GIT_TAG "a34d7d40c0f1279510e35e0dc2c69637b3c5d0b6"
+  #GIT_REPOSITORY "https://github.com/ekg/ips4o.git"
+  #GIT_TAG "f7eccc5a26928b5c0772922f7b76072414ef1801"
   UPDATE_COMMAND ""
   INSTALL_COMMAND ""
   BUILD_COMMAND ""
   CONFIGURE_COMMAND "")
 ExternalProject_Get_property(ips4o SOURCE_DIR)
 set(ips4o_INCLUDE "${SOURCE_DIR}")
+
+# atomic queue
+ExternalProject_Add(atomicqueue
+  GIT_REPOSITORY "https://github.com/max0x7ba/atomic_queue.git"
+  GIT_TAG "430f732da0889b090705ad00ce15d4463fe7b536"
+  UPDATE_COMMAND ""
+  INSTALL_COMMAND ""
+  BUILD_COMMAND ""
+  CONFIGURE_COMMAND "")
+ExternalProject_Get_property(atomicqueue SOURCE_DIR)
+set(atomicqueue_INCLUDE "${SOURCE_DIR}")
 
 # taywee's C++ args library, header only
 ExternalProject_Add(tayweeargs
@@ -112,7 +94,7 @@ ExternalProject_Add(tayweeargs
 ExternalProject_Get_property(tayweeargs SOURCE_DIR)
 set(tayweeargs_INCLUDE "${SOURCE_DIR}")
 
-set(CMAKE_BUILD_TYPE Release)
+#set(CMAKE_BUILD_TYPE Release)
 
 # set up our target executable and specify its dependencies and includes
 add_executable(mmmultimap
@@ -121,6 +103,7 @@ add_executable(mmmultimap
 add_dependencies(mmmultimap sdsl-lite)
 add_dependencies(mmmultimap dynamic)
 add_dependencies(mmmultimap ips4o)
+add_dependencies(mmmultimap atomicqueue)
 add_dependencies(mmmultimap tayweeargs)
 target_include_directories(mmmultimap PUBLIC
   "${CMAKE_SOURCE_DIR}/src"
@@ -128,6 +111,7 @@ target_include_directories(mmmultimap PUBLIC
   "${sdsl-lite-divsufsort_INCLUDE}"
   "${dynamic_INCLUDE}"
   "${ips4o_INCLUDE}"
+  "${atomicqueue_INCLUDE}"
   "${tayweeargs_INCLUDE}")
   
 # macOS doesn't want you to link in libatomic this way
@@ -136,7 +120,7 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     "${sdsl-lite_LIB}/libsdsl.a"
     "${sdsl-lite-divsufsort_LIB}/libdivsufsort.a"
     "${sdsl-lite-divsufsort_LIB}/libdivsufsort64.a"
-  #  "-ltcmalloc_minimal"
+    Threads::Threads
     )
 elseif (TRUE)
   target_link_libraries(mmmultimap
@@ -144,14 +128,17 @@ elseif (TRUE)
     "${sdsl-lite-divsufsort_LIB}/libdivsufsort.a"
     "${sdsl-lite-divsufsort_LIB}/libdivsufsort64.a"
     "-latomic"
-  #  "-ltcmalloc_minimal"
+    Threads::Threads
     )
 endif()
 
 
-#set (CMAKE_EXE_LINKER_FLAGS "${CMAKE_EXE_LINKER_FLAGS} -ltcmalloc")
-
 if (APPLE)
 elseif (TRUE)
-  set(CMAKE_EXE_LINKER_FLAGS "-static")
+  # this was hard to track down
+  # https://stackoverflow.com/questions/35116327/when-g-static-link-pthread-cause-segmentation-fault-why
+  set(CMAKE_EXE_LINKER_FLAGS "-static -Wl,--whole-archive -lpthread -Wl,--no-whole-archive")
 endif()
+
+
+

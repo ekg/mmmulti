@@ -13,7 +13,9 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <thread>
 #include "ips4o.hpp"
+#include "atomic_queue.h"
 
 /* Suppose there are N=2^(K+1)-1 sorted numbers in an array a[]. They
  * implicitly form a complete binary tree of height K+1. We consider leaves to
@@ -48,6 +50,8 @@
  */
 namespace mmmulti {
 
+using namespace std::chrono_literals;
+
 template<typename S, typename T> // "S" is a scalar type; "T" is the type of data associated with each interval
 class iitree {    
 
@@ -62,8 +66,8 @@ public:
 	struct Interval {
 		S st, en, max;
 		T data;
-        Interval(void) {};
-		Interval(const S &s, const S &e, const T &d) : st(s), en(e), max(e), data(d) {};
+        //Interval(void) {};
+		//Interval(const S &s, const S &e, const T &d) : st(s), en(e), max(e), data(d) {};
 	};
 
 private:
@@ -126,18 +130,7 @@ private:
         }
     }
 
-    int get_thread_count(void) {
-        int thread_count = 1;
-#pragma omp parallel
-        {
-#pragma omp master
-            thread_count = omp_get_num_threads();
-        }
-        return thread_count;
-    }
-    
     std::ofstream writer;
-    std::vector<std::ofstream> writers;
     char* reader = nullptr;
     int reader_fd = 0;
     std::string filename;
@@ -146,7 +139,9 @@ private:
     // key information
     uint64_t n_records = 0;
     bool indexed = false;
-    uint32_t OUTPUT_VERSION = 1; // update as we change our format
+    std::thread writer_thread; // = nullptr;
+    atomic_queue::AtomicQueue2<Interval, 2 << 16>* interval_queue = nullptr;
+    std::atomic<bool> work_todo;
 
     //std::vector<Interval> a;
 	uint64_t max_level = 0;
@@ -183,53 +178,58 @@ public:
     // constructor
     iitree(void) { }
 
-    iitree(const std::string& f) : filename(f) { open_writers(f); }
+    iitree(const std::string& f) : filename(f) { }
 
-    ~iitree(void) { close_writers(); }
+    ~iitree(void) {
+        close_writer();
+        close_reader();
+    }
 
     void set_base_filename(const std::string& f) {
         filename = f;
     }
 
+    void writer_func(void) {
+        Interval ival;
+        while (work_todo.load() || !interval_queue->was_empty()) {
+            if (interval_queue->try_pop(ival)) {
+                do {
+                    writer.write((char*)&ival, sizeof(Interval));
+                } while (interval_queue->try_pop(ival));
+            } else {
+                std::this_thread::sleep_for(0.001ns);
+            }
+        }
+        writer.close();
+    }
+
     // close/open backing file
-    void open_main_writer(void) {
+    void open_writer(void) {
         if (writer.is_open()) {
             writer.seekp(0, std::ios_base::end); // seek to the end for appending
             return;
         }
         assert(!filename.empty());
-        // open in binary append mode as that's how we write into the file
-        //writer.open(filename.c_str(), std::ios::binary | std::ios::app);
         // remove the file; we only call this when making an index, and it's done once
         writer.open(filename.c_str(), std::ios::binary | std::ios::trunc);
         if (writer.fail()) {
             throw std::ios_base::failure(std::strerror(errno));
         }
+        interval_queue = new atomic_queue::AtomicQueue2<Interval, 2 << 16>;
+        work_todo.store(true);
+        writer_thread = std::thread(&iitree::writer_func, this);
     }
 
-    // per-thread writers
-    void open_writers(const std::string& f) {
-        set_base_filename(f);
-        open_writers();
-    }
-
-    void open_writers(void) {
-        assert(!filename.empty());
-        writers.clear();
-        writers.resize(get_thread_count());
-        for (size_t i = 0; i < writers.size(); ++i) {
-            auto& writer = writers[i];
-            writer.open(writer_filename(i), std::ios::binary | std::ios::app);
-            if (writer.fail()) {
-                throw std::ios_base::failure(std::strerror(errno));
+    void close_writer(void) {
+        if (work_todo.load()) {
+            work_todo.store(false);
+            std::this_thread::sleep_for(1ms);
+            if (writer_thread.joinable()) {
+                writer_thread.join();
             }
+            delete interval_queue;
+            interval_queue = nullptr;
         }
-    }
-
-    std::string writer_filename(size_t i) {
-        std::stringstream wf;
-        wf << filename << ".tmp_write" << "." << i;
-        return wf.str();
     }
 
     void open_reader(void) {
@@ -256,52 +256,6 @@ public:
         madvise((void*)reader, stats.st_size, POSIX_MADV_WILLNEED | POSIX_MADV_SEQUENTIAL);
     }
 
-    std::ofstream& get_writer(void) {
-        return writers[omp_get_thread_num()];
-    }
-    
-    void sync_writers(void) {
-        // check to see if we ran single-threaded
-        uint64_t used_writers = 0;
-        uint64_t writer_that_wrote = 0;
-        for (size_t i = 0; i < writers.size(); ++i) {
-            writers[i].close();
-            if (filesize(writer_filename(i).c_str())) {
-                ++used_writers;
-                writer_that_wrote = i;
-            }
-        }
-        bool single_threaded = used_writers == 1;
-        // close the temp writers and cat them onto the end of the main file
-        if (single_threaded) {
-            std::rename(writer_filename(writer_that_wrote).c_str(), filename.c_str());
-            for (size_t i = 0; i < writers.size(); ++i) {
-                if (i != writer_that_wrote) {
-                    std::remove(writer_filename(i).c_str());
-                }
-            }
-        } else {
-            open_main_writer();
-            for (size_t i = 0; i < writers.size(); ++i) {
-                std::ifstream if_w(writer_filename(i), std::ios_base::binary);
-                writer << if_w.rdbuf();
-                if_w.close();
-                std::remove(writer_filename(i).c_str());
-            }
-        }
-        writers.clear();
-        writer.close();
-        for (size_t i = 0; i < writers.size(); ++i) {
-            std::remove(writer_filename(i).c_str());
-        }
-    }
-
-    void close_writers(void) {
-        for (size_t i = 0; i < writers.size(); ++i) {
-            std::remove(writer_filename(i).c_str());
-        }
-    }
-    
     void close_reader(void) {
         if (reader) {
             size_t c = record_count();
@@ -367,8 +321,8 @@ public:
     }
 
     /// sort the record in the backing file by key
-    void sort(void) {
-        sync_writers();
+    void sort(int num_threads) {
+        close_writer();
         close_reader();
         if (sorted) return;
         //std::cerr << "sorting!" << std::endl;
@@ -378,7 +332,8 @@ public:
         // sort in parallel (uses OpenMP if available, std::thread otherwise)
         ips4o::parallel::sort((Interval*)buffer.data,
                               ((Interval*)buffer.data)+data_len,
-                              IntervalLess());
+                              IntervalLess(),
+                              num_threads);
         close_mmap_buffer(&buffer);
         sorted = true;
     }
@@ -514,13 +469,15 @@ public:
 
 public:
 	void add(const S &s, const S &e, const T &d) {
-        // write to the end of the file
-        Interval v(s, e, d);
-        auto& writer = get_writer();
-        writer.write((char*)&v, sizeof(Interval));
+        // write into our write buffer, spawn the thread to process this
+        if (interval_queue == nullptr) {
+            open_writer();
+        }
+        interval_queue->push((Interval){s, e, d});
     }
-	void index(void) {
-        sort();
+
+	void index(int num_threads) {
+        sort(num_threads);
         open_reader();
         n_records = record_count();
         indexed = true;
@@ -528,6 +485,7 @@ public:
         open_reader();
 		max_level = index_core(get_array(), n_records);
 	}
+
 	void overlap(const S &st, const S &en, std::vector<size_t> &out) const {
 		int64_t t = 0;
 		StackCell stack[64];
@@ -553,6 +511,7 @@ public:
 			}
 		}
 	}
+
 	//size_t size(void) const { return a.size(); }
 	const S &start(size_t i) const { return get_array()[i].st; }
 	const S &end(size_t i) const { return get_array()[i].en; }

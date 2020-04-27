@@ -6,6 +6,7 @@
 #include <functional>
 #include <unordered_set>
 #include <utility>
+#include <thread>
 
 #include <fcntl.h>
 #include <cstdio>
@@ -17,8 +18,11 @@
 
 #include "sdsl/bit_vectors.hpp"
 #include "ips4o.hpp"
+#include "atomic_queue.h"
 
 namespace mmmulti {
+
+using namespace std::chrono_literals;
 
 /*
 'mmmulti::set' is a disk-backed multiset values are stored
@@ -87,18 +91,11 @@ private:
         }
     }
 
-    int get_thread_count(void) {
-        int thread_count = 1;
-#pragma omp parallel
-        {
-#pragma omp master
-            thread_count = omp_get_num_threads();
-        }
-        return thread_count;
-    }
+    struct ValueLess {
+        bool operator()(const Value &a, const Value &b) const { return a < b; }
+	};
     
     std::ofstream writer;
-    std::vector<std::ofstream> writers;
     char* reader = nullptr;
     int reader_fd = 0;
     std::string filename;
@@ -107,8 +104,9 @@ private:
     // key information
     uint64_t n_records = 0;
     bool indexed = false;
-    uint32_t OUTPUT_VERSION = 1; // update as we change our format
-
+    std::thread* writer_thread = nullptr;
+    atomic_queue::AtomicQueue2<Value, 2 << 16>* value_queue = nullptr;
+    std::atomic<bool> work_todo;
     
 public:
 
@@ -119,53 +117,56 @@ public:
     // constructor
     set(void) { }
 
-    set(const std::string& f) : filename(f) { open_writers(f); }
+    set(const std::string& f) : filename(f) { }
 
-    ~set(void) { close_writers(); close_reader();}
+    ~set(void) {
+        close_writer();
+        close_reader();
+    }
 
     void set_base_filename(const std::string& f) {
         filename = f;
     }
 
-    // close/open backing file
-    void open_main_writer(void) {
+    void open_writer(void) {
         if (writer.is_open()) {
             writer.seekp(0, std::ios_base::end); // seek to the end for appending
             return;
         }
         assert(!filename.empty());
-        // open in binary append mode as that's how we write into the file
-        //writer.open(filename.c_str(), std::ios::binary | std::ios::app);
         // remove the file; we only call this when making an index, and it's done once
         writer.open(filename.c_str(), std::ios::binary | std::ios::trunc);
         if (writer.fail()) {
             throw std::ios_base::failure(std::strerror(errno));
         }
+        value_queue = new atomic_queue::AtomicQueue2<Value, 2 << 16>;
+        work_todo.store(true);
+        auto writer_lambda =
+            [&](void) {
+                Value value;
+                while (work_todo.load() || !value_queue->was_empty()) {
+                    if (value_queue->try_pop(value)) {
+                        do {
+                            writer.write((char*)&value, sizeof(Value));
+                        } while (value_queue->try_pop(value));
+                    } else {
+                        std::this_thread::sleep_for(0.001ns);
+                    }
+                }
+            };
+        writer_thread = new std::thread(writer_lambda);
     }
 
-    // per-thread writers
-    void open_writers(const std::string& f) {
-        set_base_filename(f);
-        open_writers();
-    }
-
-    void open_writers(void) {
-        assert(!filename.empty());
-        writers.clear();
-        writers.resize(get_thread_count());
-        for (size_t i = 0; i < writers.size(); ++i) {
-            auto& writer = writers[i];
-            writer.open(writer_filename(i), std::ios::binary | std::ios::app);
-            if (writer.fail()) {
-                throw std::ios_base::failure(std::strerror(errno));
-            }
+    void close_writer(void) {
+        if (writer_thread != nullptr) {
+            work_todo.store(false);
+            writer_thread->join();
+            delete writer_thread;
+            writer_thread = nullptr;
+            delete value_queue;
+            value_queue = nullptr;
+            writer.close();
         }
-    }
-
-    std::string writer_filename(size_t i) {
-        std::stringstream wf;
-        wf << filename << ".tmp_write" << "." << i;
-        return wf.str();
     }
 
     void open_reader(void) {
@@ -192,52 +193,6 @@ public:
         madvise((void*)reader, stats.st_size, POSIX_MADV_WILLNEED | POSIX_MADV_SEQUENTIAL);
     }
 
-    std::ofstream& get_writer(void) {
-        return writers[omp_get_thread_num()];
-    }
-
-    void sync_writers(void) {
-        // check to see if we ran single-threaded
-        uint64_t used_writers = 0;
-        uint64_t writer_that_wrote = 0;
-        for (size_t i = 0; i < writers.size(); ++i) {
-            writers[i].close();
-            if (filesize(writer_filename(i).c_str())) {
-                ++used_writers;
-                writer_that_wrote = i;
-            }
-        }
-        bool single_threaded = used_writers == 1;
-        // close the temp writers and cat them onto the end of the main file
-        if (single_threaded) {
-            std::rename(writer_filename(writer_that_wrote).c_str(), filename.c_str());
-            for (size_t i = 0; i < writers.size(); ++i) {
-                if (i != writer_that_wrote) {
-                    std::remove(writer_filename(i).c_str());
-                }
-            }
-        } else {
-            open_main_writer();
-            for (size_t i = 0; i < writers.size(); ++i) {
-                std::ifstream if_w(writer_filename(i), std::ios_base::binary);
-                writer << if_w.rdbuf();
-                if_w.close();
-                std::remove(writer_filename(i).c_str());
-            }
-        }
-        writers.clear();
-        writer.close();
-        for (size_t i = 0; i < writers.size(); ++i) {
-            std::remove(writer_filename(i).c_str());
-        }
-    }
-
-    void close_writers(void) {
-        for (size_t i = 0; i < writers.size(); ++i) {
-            std::remove(writer_filename(i).c_str());
-        }
-    }
-    
     void close_reader(void) {
         if (reader) {
             size_t c = record_count();
@@ -252,10 +207,10 @@ public:
 
     /// write the pair to end of backing file
     void append(const Value& v) {
-        sorted = false; // assume we break the sort
-        // write to the end of the file
-        auto& writer = get_writer();
-        writer.write((char*)&v, sizeof(Value));
+        if (value_queue == nullptr) {
+            open_writer();
+        }
+        value_queue->push(v);
     }
 
     /// return the number of records, which will only work after indexing
@@ -315,8 +270,8 @@ public:
     }
     
     /// sort the record in the backing file by key
-    void sort(void) {
-        sync_writers();
+    void sort(int num_threads) {
+        close_writer();
         close_reader();
         if (sorted) return;
         //std::cerr << "sorting!" << std::endl;
@@ -325,7 +280,9 @@ public:
         uint64_t data_len = buffer.size/sizeof(Value);
         // sort in parallel (uses OpenMP if available, std::thread otherwise)
         ips4o::parallel::sort((Value*)buffer.data,
-                              ((Value*)buffer.data)+data_len);
+                              ((Value*)buffer.data)+data_len,
+                              ValueLess(),
+                              num_threads);
         close_mmap_buffer(&buffer);
         sorted = true;
     }
@@ -337,8 +294,8 @@ public:
     }
 
     // index
-    void index(void) {
-        sort();
+    void index(int num_threads) {
+        sort(num_threads);
         open_reader();
         n_records = record_count();
         indexed = true;
