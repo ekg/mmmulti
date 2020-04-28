@@ -65,9 +65,11 @@ public:
 	struct Interval {
 		S st, en, max;
 		T data;
-        //Interval(void) {};
-		//Interval(const S &s, const S &e, const T &d) : st(s), en(e), max(e), data(d) {};
 	};
+    // note that we have to set max to end initially
+    Interval make_interval(const S &s, const S &e, const T &d) {
+        return {s, e, e, d};
+    }
 
 private:
 	struct IntervalLess {
@@ -470,7 +472,7 @@ public:
     /// write into our write buffer
     /// open_writer() must be called first to set up our buffer and writer
 	void add(const S &s, const S &e, const T &d) {
-        interval_queue->push((Interval){s, e, d});
+        interval_queue->push(make_interval(s, e, d));
     }
 
 	void index(int num_threads) {
