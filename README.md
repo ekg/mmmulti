@@ -178,7 +178,7 @@ tree.overlap(
 
 It's also possible to iterate through the ranges with `for_each_entry` and also with their counts, where duplicates are present with `for_each_entry_count`.
 
-### building and testing
+## building and testing
 
 `mmmulti`'s classes are intended to be used as libraries in other applications.
 The namespace can be included easily as a CMake ExternalProject.
