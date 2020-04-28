@@ -222,7 +222,7 @@ public:
     void close_writer(void) {
         if (work_todo.load()) {
             work_todo.store(false);
-            std::this_thread::sleep_for(1ms);
+            std::this_thread::sleep_for(std::chrono::milliseconds(1));
             if (writer_thread.joinable()) {
                 writer_thread.join();
             }
