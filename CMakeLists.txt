@@ -85,6 +85,17 @@ ExternalProject_Add(atomicqueue
 ExternalProject_Get_property(atomicqueue SOURCE_DIR)
 set(atomicqueue_INCLUDE "${SOURCE_DIR}")
 
+# paryfor parallel_for
+ExternalProject_Add(paryfor
+  GIT_REPOSITORY "https://github.com/ekg/paryfor"
+  GIT_TAG "509b28a092f732a068e2908bb9e359a8562cd32f"
+  UPDATE_COMMAND ""
+  INSTALL_COMMAND ""
+  BUILD_COMMAND ""
+  CONFIGURE_COMMAND "")
+ExternalProject_Get_property(paryfor SOURCE_DIR)
+set(paryfor_INCLUDE "${SOURCE_DIR}")
+
 # taywee's C++ args library, header only
 ExternalProject_Add(tayweeargs
   GIT_REPOSITORY "https://github.com/Taywee/args.git"
@@ -104,6 +115,7 @@ add_dependencies(mmmultimap sdsl-lite)
 add_dependencies(mmmultimap dynamic)
 add_dependencies(mmmultimap ips4o)
 add_dependencies(mmmultimap atomicqueue)
+add_dependencies(mmmultimap paryfor)
 add_dependencies(mmmultimap tayweeargs)
 target_include_directories(mmmultimap PUBLIC
   "${CMAKE_SOURCE_DIR}/src"
@@ -112,6 +124,7 @@ target_include_directories(mmmultimap PUBLIC
   "${dynamic_INCLUDE}"
   "${ips4o_INCLUDE}"
   "${atomicqueue_INCLUDE}"
+  "${paryfor_INCLUDE}"
   "${tayweeargs_INCLUDE}")
   
 # macOS doesn't want you to link in libatomic this way
