@@ -411,16 +411,6 @@ public:
         return e.value;
     }
 
-    void for_each_pair_parallel(const std::function<void(const Key&, const Value&)>& lambda) const {
-//#pragma omp parallel for schedule(dynamic)
-        for (size_t i = 0; i < n_records; ++i) {
-            Entry entry = read_entry(i);
-            if (!padded || !is_null(entry.value)) {
-                lambda(entry.key, entry.value);
-            }
-        }
-    }
-
     void for_each_pair(const std::function<void(const Key&, const Value&)>& lambda) const {
         Entry entry;
         for (size_t i = 0; i < n_records; ++i) {

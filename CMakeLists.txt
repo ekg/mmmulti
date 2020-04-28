@@ -3,7 +3,7 @@
 cmake_minimum_required(VERSION 3.1)
 
 # Project's name
-project(mmmultimap)
+project(mmmulti)
 # We build using c++14
 set(CMAKE_CXX_STANDARD 14)
 
@@ -108,16 +108,16 @@ set(tayweeargs_INCLUDE "${SOURCE_DIR}")
 #set(CMAKE_BUILD_TYPE Release)
 
 # set up our target executable and specify its dependencies and includes
-add_executable(mmmultimap
+add_executable(mmmulti
   ${CMAKE_SOURCE_DIR}/src/main.cpp
   )
-add_dependencies(mmmultimap sdsl-lite)
-add_dependencies(mmmultimap dynamic)
-add_dependencies(mmmultimap ips4o)
-add_dependencies(mmmultimap atomicqueue)
-add_dependencies(mmmultimap paryfor)
-add_dependencies(mmmultimap tayweeargs)
-target_include_directories(mmmultimap PUBLIC
+add_dependencies(mmmulti sdsl-lite)
+add_dependencies(mmmulti dynamic)
+add_dependencies(mmmulti ips4o)
+add_dependencies(mmmulti atomicqueue)
+add_dependencies(mmmulti paryfor)
+add_dependencies(mmmulti tayweeargs)
+target_include_directories(mmmulti PUBLIC
   "${CMAKE_SOURCE_DIR}/src"
   "${sdsl-lite_INCLUDE}"
   "${sdsl-lite-divsufsort_INCLUDE}"
@@ -129,14 +129,14 @@ target_include_directories(mmmultimap PUBLIC
   
 # macOS doesn't want you to link in libatomic this way
 if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
-  target_link_libraries(mmmultimap
+  target_link_libraries(mmmulti
     "${sdsl-lite_LIB}/libsdsl.a"
     "${sdsl-lite-divsufsort_LIB}/libdivsufsort.a"
     "${sdsl-lite-divsufsort_LIB}/libdivsufsort64.a"
     Threads::Threads
     )
 elseif (TRUE)
-  target_link_libraries(mmmultimap
+  target_link_libraries(mmmulti
     "${sdsl-lite_LIB}/libsdsl.a"
     "${sdsl-lite-divsufsort_LIB}/libdivsufsort.a"
     "${sdsl-lite-divsufsort_LIB}/libdivsufsort64.a"
