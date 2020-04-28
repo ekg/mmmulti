@@ -13,6 +13,7 @@
 #include <sys/stat.h>
 #include <sys/types.h>
 #include <unistd.h>
+#include <functional>
 #include <thread>
 #include "ips4o.hpp"
 #include "atomic_queue.h"
@@ -482,12 +483,12 @@ public:
 		max_level = index_core(get_array(), n_records);
 	}
 
-	void overlap(const S &st, const S &en, std::vector<size_t> &out) const {
+    /// get overlaps, callback takes index, start, end, data
+	void overlap(const S &st, const S &en, const std::function<void(const size_t&, const S&, const S&, const T&)>& func) const {
 		int64_t t = 0;
 		StackCell stack[64];
         Interval* a = get_array();
-		out.clear();
-		stack[t++] = StackCell(max_level, (1LL<<max_level) - 1, 0); // push the root; this is a top down traversal
+        stack[t++] = StackCell(max_level, (1LL<<max_level) - 1, 0); // push the root; this is a top down traversal
 		while (t) { // the following guarantees that numbers in out[] are always sorted
 			StackCell z = stack[--t];
 			if (z.k <= 3) { // we are in a small subtree; traverse every node in this subtree
@@ -495,18 +496,27 @@ public:
 				if (i1 >= n_records) i1 = n_records;
 				for (i = i0; i < i1 && a[i].st < en; ++i)
 					if (st < a[i].en) // if overlap, append to out[]
-						out.push_back(i);
+						func(i, a[i].st, a[i].en, a[i].data);
 			} else if (z.w == 0) { // if left child not processed
 				size_t y = z.x - (1LL<<(z.k-1)); // the left child of z.x; NB: y may be out of range (i.e. y>=n_records)
 				stack[t++] = StackCell(z.k, z.x, 1); // re-add node z.x, but mark the left child having been processed
 				if (y >= n_records || a[y].max > st) // push the left child if y is out of range or may overlap with the query
 					stack[t++] = StackCell(z.k - 1, y, 0);
 			} else if (z.x < n_records && a[z.x].st < en) { // need to push the right child
-				if (st < a[z.x].en) out.push_back(z.x); // test if z.x overlaps the query; if yes, append to out[]
+				if (st < a[z.x].en) func(z.x, a[z.x].st, a[z.x].en, a[z.x].data); // test if z.x overlaps the query; if yes, append to out[]
 				stack[t++] = StackCell(z.k - 1, z.x + (1LL<<(z.k-1)), 0); // push the right child
 			}
 		}
 	}
+
+    /// callback takes only start, end, and data
+    void overlap(const S &st, const S &en, const std::function<void(const S&, const S&, const T&)>& func) const {
+        overlap(
+            st, en,
+            [&func](const size_t& idx, const S& start, const S& end, const T& data) {
+                func(start, end, data);
+            });
+    }
 
 	//size_t size(void) const { return a.size(); }
 	const S &start(size_t i) const { return get_array()[i].st; }

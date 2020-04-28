@@ -131,7 +131,7 @@ To construct the `mmmulti::set`:
 #include "mmiitree.hpp"
 
 # template arguments are range integer type and stored value
-mmmulti::iitree<uint64_t, uint64_t> tree("temp.dat");
+mmmulti::iitree<uint64_t, Data> tree("temp.dat");
 ```
 
 We can then add keys:
@@ -161,15 +161,19 @@ The indexing procedure from [cgranges](https://github.com/lh3/cgranges) is then 
 To find overlaps for a given query, use `mmmulti::iitree::overlap`.
 This returns a vector of range ranks in the sorted set of ranges.
 We can then look up the start, end, and data fields of these in the backing tree.
+For efficiency, this is done by callback.
 
 ```c++
-std::vector<size_t> ovlps;
-tree.overlap(n, m, ovlps);
-for (auto& range : ovlps) {
-    std::cout << "start " << tree.start(range) << std::endl;
-    std::cout << "end   " << tree.end(range)   << std::endl;
-    std::cout << "data  " << tree.data(range)  << std::endl;
-}
+tree.overlap(
+    n, m,
+    [&](const uint64_t& start,
+        const uint64_t& end,
+        const Data& data) {
+        // process record
+        std::cout << "start " << start << std::endl;
+        std::cout << "end   " << end   << std::endl;
+        std::cout << "data  " << data  << std::endl;
+    });
 ```
 
 It's also possible to iterate through the ranges with `for_each_entry` and also with their counts, where duplicates are present with `for_each_entry_count`.

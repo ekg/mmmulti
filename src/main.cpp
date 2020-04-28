@@ -241,15 +241,16 @@ int main(int argc, char** argv) {
             });
         tree.index(num_threads);
         for (int n=0; n<max_value; ++n) {
-            std::vector<size_t> ovlp;
-            tree.overlap(n, n+1, ovlp);
             if (n % 1000 == 0) std::cerr << n << "\r";
-            //std::cerr << n << " has " << ovlp.size() << " overlaps" << std::endl;
-            for (auto& s : ovlp) {
-                if (tree.start(s) > n || tree.end(s) < n) {
-                    std::cerr << "tree broken at " << n << std::endl;
-                }
-            }
+            tree.overlap(
+                n, n+1,
+                [&](const uint64_t& start,
+                    const uint64_t& end,
+                    const uint64_t& data) {
+                    if (start > n || end < n) {
+                        std::cerr << "tree broken at " << n << std::endl;
+                    }
+                });
         }
         std::cerr << std::endl;
         /*
