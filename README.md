@@ -33,7 +33,7 @@ To construct the `mmmulti::map`:
 mmmulti::map<uint64_t, uint64_t> mmap("temp.dat");
 ```
 
-We can then add keys:
+We can then add key pairs:
 
 ```c++
 mmap.open_writer(); // required before adding keys, opens a writer/coordinator thread
@@ -91,7 +91,7 @@ To construct the `mmmulti::set`:
 mmmulti::set<uint64_t> mset("temp.dat");
 ```
 
-We can then add keys:
+We can then add values:
 
 ```c++
 mset.open_writer(); // required before adding keys, opens a writer/coordinator thread
@@ -134,7 +134,7 @@ To construct the `mmmulti::set`:
 mmmulti::iitree<uint64_t, Data> tree("temp.dat");
 ```
 
-We can then add keys:
+We can then add ranges:
 
 ```c++
 tree.open_writer(); // required before adding intervals, opens a writer/coordinator thread
