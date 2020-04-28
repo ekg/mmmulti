@@ -23,7 +23,7 @@ These may seem to be very specific, but many problems can be mapped into a dense
 As this multimap forms a key data processing kernel in the algorithm, it can scale to extremely large problem sizes, limited only by available disk space.
 Although performance is much slower than an in-memory structure, we are virtually guaranteed to be able to complete the compute.
 
-### algorithm and usage
+### usage
 
 To construct the `mmmulti::map`:
 
@@ -73,7 +73,7 @@ It is now possible to iterate through the records in order with `for_each_pair`.
 We can look up the nth key or value with `nth_key` and `nth_value`, which can be used to enable parallel traversal of the keys externally.
 And we can iterate over the values or unique values of a given key with `for_values_of` and `for_unique_values_of`.
 
-### mmmulti::set memory-mapped multiset with iteration
+## mmmulti::set memory-mapped multiset with iteration
 
 This is similar to `mmmulti::map`, but useful where random access to values is not required, and where contiguity of keys is not possible.
 It drops the index structures and padding, saving space, but preserves the same API.
@@ -81,7 +81,7 @@ The `mmmulti::set` only provides iteration across its key space.
 As such, it's useful where we need to collect and count a set of entities.
 Random access is not currently supported (TODO: it would be easy to implement using binary search, but current applications do not require it).
 
-### algorithm and usage
+### usage
 
 To construct the `mmmulti::set`:
 
@@ -116,14 +116,14 @@ Indexing closes the writer, memory maps the backing file and applies the [ips4o]
 
 It is now possible to iterate through the records in order with `for_each_value`, along with their counts with `for_each_value_count`, or just unique values with `for_each_unique_value`.
 
-### mmmulti::iitree memory-mapped implicit interval tree
+## mmmulti::iitree memory-mapped implicit interval tree
 
 The implicint interval tree data structure sorts a collection of intervals into a linear array ([cgranges](https://github.com/lh3/cgranges)).
 Tree traversal is achieved by jumping between array indexes.
 `mmmulti::iitree` implements this model on top of a disk-backed memory-mapped array, and uses the [ips4o](https://github.com/SaschaWitt/ips4o) in-place parallel super scalar to speed up sorting and index generation.
 Usage is similar to other classes in `mmmulti`.
 
-### algorithm and usage
+### usage
 
 To construct the `mmmulti::set`:
 
