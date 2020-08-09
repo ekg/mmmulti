@@ -76,6 +76,7 @@ And we can iterate over the values or unique values of a given key with `for_val
 ## mmmulti::set memory-mapped multiset with iteration
 
 This is similar to `mmmulti::map`, but useful where random access to values is not required, and where contiguity of keys is not possible.
+Unlike the `mmmulti::map`, arbitrary fixed-length data types are allowed, but they must have `operator<` defined to enable sorting.
 It drops the index structures and padding, saving space, but preserves the same API.
 The `mmmulti::set` only provides iteration across its key space.
 As such, it's useful where we need to collect and count a set of entities.
