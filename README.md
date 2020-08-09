@@ -47,7 +47,7 @@ Calls to `append` are threadsafe once `open_writer` has been called.
 To query the `mmmulti::map`, first index it, providing the maximum key to expect (remember, we're working on dense keys!):
 
 ```c++
-mmap.index(max_key);
+mmap.index(num_threads, max_key);
 ```
 
 If we index without providing a maximum key, like this:
