@@ -265,7 +265,7 @@ public:
     void close_reader(void) {
         if (reader) {
             size_t c = record_count();
-            munmap(reader, c);
+            munmap(reader, c * record_size);
             reader = 0;
         }
         if (reader_fd) {

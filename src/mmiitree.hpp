@@ -260,7 +260,7 @@ public:
     void close_reader(void) {
         if (reader) {
             size_t c = record_count();
-            munmap(reader, c);
+            munmap(reader, c * sizeof(Interval));
             reader = 0;
         }
         if (reader_fd) {
