@@ -123,15 +123,13 @@ private:
     bool indexed = false;
     uint32_t OUTPUT_VERSION = 1; // update as we change our format
     std::thread writer_thread;
-    atomic_queue::AtomicQueue2<Entry, 2 << 16>* entry_queue = nullptr;
+    atomic_queue::AtomicQueue2<Entry, 2 << 16> entry_queue;
     std::atomic<bool> work_todo;
 
-    void init(void) {
+    void init(Value nullv) {
         record_size = sizeof(Key) + sizeof(Value);
         nullkey = 0;
-        for (size_t i = 0; i < sizeof(Value); ++i) {
-            ((uint8_t*)&nullvalue)[i] = 0;
-        }
+        nullvalue = nullv;
     }
 
 public:
@@ -141,9 +139,9 @@ public:
     class const_iterator;
 
     // constructor
-    map(void) { init(); }
+    map(Value nullv) { init(nullv); }
 
-    map(const std::string& f) : filename(f) { init(); }
+    map(const std::string& f, Value nullv) : filename(f) { init(nullv); }
 
     ~map(void) {
         close_writer();
@@ -197,11 +195,11 @@ public:
 
     void writer_func(void) {
         Entry entry;
-        while (work_todo.load() || !entry_queue->was_empty()) {
-            if (entry_queue->try_pop(entry)) {
+        while (work_todo.load() || !entry_queue.was_empty()) {
+            if (entry_queue.try_pop(entry)) {
                 do {
                     writer.write((char*)&entry, sizeof(Entry));
-                } while (entry_queue->try_pop(entry));
+                } while (entry_queue.try_pop(entry));
             } else {
                 std::this_thread::sleep_for(std::chrono::nanoseconds(1));
             }
@@ -221,7 +219,6 @@ public:
         if (writer.fail()) {
             throw std::ios_base::failure(std::strerror(errno));
         }
-        entry_queue = new atomic_queue::AtomicQueue2<Entry, 2 << 16>;
         work_todo.store(true);
         writer_thread = std::thread(&map::writer_func, this);
     }
@@ -233,8 +230,6 @@ public:
             if (writer_thread.joinable()) {
                 writer_thread.join();
             }
-            delete entry_queue;
-            entry_queue = nullptr;
         }
     }
 
@@ -263,10 +258,10 @@ public:
     }
 
     void close_reader(void) {
-        if (reader) {
+        if (reader != nullptr) {
             size_t c = record_count();
             munmap(reader, c * record_size);
-            reader = 0;
+            reader = nullptr;
         }
         if (reader_fd) {
             close(reader_fd);
@@ -277,7 +272,7 @@ public:
     /// write the pair to the backing file
     /// open_writer() must be called first to set up our buffer and writer
     void append(const Key& k, const Value& v) {
-        entry_queue->push((Entry){k, v});
+        entry_queue.push((Entry){k, v});
     }
 
     /// return the number of records, which will only work after indexing
@@ -297,7 +292,7 @@ public:
 
     /// get the record count
     size_t record_count(void) {
-        int fd = open(filename.c_str(), O_RDWR);
+        int fd = open(filename.c_str(), O_RDONLY);
         if (fd == -1) {
             assert(false);
         }

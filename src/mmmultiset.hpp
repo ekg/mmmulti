@@ -103,7 +103,7 @@ private:
     uint64_t n_records = 0;
     bool indexed = false;
     std::thread writer_thread;
-    atomic_queue::AtomicQueue2<Value, 2 << 16>* value_queue = nullptr;
+    atomic_queue::AtomicQueue2<Value, 2 << 16> value_queue;
     std::atomic<bool> work_todo;
     
 public:
@@ -128,11 +128,11 @@ public:
 
     void writer_func(void) {
         Value value;
-        while (work_todo.load() || !value_queue->was_empty()) {
-            if (value_queue->try_pop(value)) {
+        while (work_todo.load() || !value_queue.was_empty()) {
+            if (value_queue.try_pop(value)) {
                 do {
                     writer.write((char*)&value, sizeof(Value));
-                } while (value_queue->try_pop(value));
+                } while (value_queue.try_pop(value));
             } else {
                 std::this_thread::sleep_for(std::chrono::nanoseconds(1));
             }
@@ -152,7 +152,6 @@ public:
         if (writer.fail()) {
             throw std::ios_base::failure(std::strerror(errno));
         }
-        value_queue = new atomic_queue::AtomicQueue2<Value, 2 << 16>;
         work_todo.store(true);
         writer_thread = std::thread(&set::writer_func, this);
     }
@@ -164,8 +163,6 @@ public:
             if (writer_thread.joinable()) {
                 writer_thread.join();
             }
-            delete value_queue;
-            value_queue = nullptr;
         }
     }
 
@@ -208,7 +205,7 @@ public:
     /// write the pair to end of backing file
     /// open_writer() must be called first to set up our buffer and writer
     void append(const Value& v) {
-        value_queue->push(v);
+        value_queue.push(v);
     }
 
     /// return the number of records, which will only work after indexing

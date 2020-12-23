@@ -54,7 +54,7 @@ int main(int argc, char** argv) {
             std::uniform_int_distribution<uint64_t> dis(1, max_key);
             //std::vector<uint64_t> x; x.reserve(1e8);
             std::remove(args::get(test_file).c_str());
-            mmmulti::map<uint64_t, std::pair<uint64_t, uint64_t>> mm(args::get(test_file));
+            mmmulti::map<uint64_t, std::pair<uint64_t, uint64_t>> mm(args::get(test_file), std::make_pair(0,0));
             uint64_t x_len = args::get(test_size);
             mm.open_writer();
             paryfor::parallel_for<uint64_t>(
@@ -105,7 +105,7 @@ int main(int argc, char** argv) {
             std::uniform_int_distribution<uint64_t> dis(1, max_key);
             //std::vector<uint64_t> x; x.reserve(1e8);
             std::remove(args::get(test_file).c_str());
-            mmmulti::map<uint64_t, uint64_t> mm(args::get(test_file));
+            mmmulti::map<uint64_t, uint64_t> mm(args::get(test_file), 0);
             uint64_t x_len = args::get(test_size);
             mm.open_writer();
             paryfor::parallel_for<uint64_t>(
@@ -142,7 +142,7 @@ int main(int argc, char** argv) {
             std::uniform_int_distribution<uint64_t> dis(1, max_key);
             //std::vector<uint64_t> x; x.reserve(1e8);
             std::remove(args::get(test_file).c_str());
-            mmmulti::map<uint64_t, uint64_t> mm(args::get(test_file));
+            mmmulti::map<uint64_t, uint64_t> mm(args::get(test_file), 0);
             uint64_t x_len = args::get(test_size);
             mm.open_writer();
             paryfor::parallel_for<uint64_t>(

@@ -141,7 +141,7 @@ private:
     uint64_t n_records = 0;
     bool indexed = false;
     std::thread writer_thread; // = nullptr;
-    atomic_queue::AtomicQueue2<Interval, 2 << 16>* interval_queue = nullptr;
+    atomic_queue::AtomicQueue2<Interval, 2 << 16> interval_queue;
     std::atomic<bool> work_todo;
 
     //std::vector<Interval> a;
@@ -192,11 +192,11 @@ public:
 
     void writer_func(void) {
         Interval ival;
-        while (work_todo.load() || !interval_queue->was_empty()) {
-            if (interval_queue->try_pop(ival)) {
+        while (work_todo.load() || !interval_queue.was_empty()) {
+            if (interval_queue.try_pop(ival)) {
                 do {
                     writer.write((char*)&ival, sizeof(Interval));
-                } while (interval_queue->try_pop(ival));
+                } while (interval_queue.try_pop(ival));
             } else {
                 std::this_thread::sleep_for(std::chrono::nanoseconds(1));
             }
@@ -216,7 +216,6 @@ public:
         if (writer.fail()) {
             throw std::ios_base::failure(std::strerror(errno));
         }
-        interval_queue = new atomic_queue::AtomicQueue2<Interval, 2 << 16>;
         work_todo.store(true);
         writer_thread = std::thread(&iitree::writer_func, this);
     }
@@ -228,8 +227,6 @@ public:
             if (writer_thread.joinable()) {
                 writer_thread.join();
             }
-            delete interval_queue;
-            interval_queue = nullptr;
         }
     }
 
@@ -472,7 +469,7 @@ public:
     /// write into our write buffer
     /// open_writer() must be called first to set up our buffer and writer
 	void add(const S &s, const S &e, const T &d) {
-        interval_queue->push(make_interval(s, e, d));
+        interval_queue.push(make_interval(s, e, d));
     }
 
 	void index(int num_threads) {
