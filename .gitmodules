@@ -1,0 +1,7 @@
+[submodule "deps/mio"]
+	path = deps/mio
+	url = https://github.com/mandreyel/mio.git
+	branch = master
+[submodule "deps/args"]
+	path = deps/args
+	url = https://github.com/Taywee/args.git

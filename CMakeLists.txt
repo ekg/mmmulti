@@ -97,13 +97,10 @@ ExternalProject_Get_property(paryfor SOURCE_DIR)
 set(paryfor_INCLUDE "${SOURCE_DIR}")
 
 # taywee's C++ args library, header only
-ExternalProject_Add(tayweeargs
-  GIT_REPOSITORY "https://github.com/Taywee/args.git"
-  GIT_TAG "3de44ec671db452cc0c4ef86399b108939768abb"
-  UPDATE_COMMAND ""
-  INSTALL_COMMAND "")
-ExternalProject_Get_property(tayweeargs SOURCE_DIR)
-set(tayweeargs_INCLUDE "${SOURCE_DIR}")
+set(tayweeargs_INCLUDE deps/args)
+
+#TODO
+add_subdirectory(deps/mio)
 
 #set(CMAKE_BUILD_TYPE Release)
 
@@ -116,7 +113,7 @@ add_dependencies(mmmulti dynamic)
 add_dependencies(mmmulti ips4o)
 add_dependencies(mmmulti atomicqueue)
 add_dependencies(mmmulti paryfor)
-add_dependencies(mmmulti tayweeargs)
+
 target_include_directories(mmmulti PUBLIC
   "${CMAKE_SOURCE_DIR}/src"
   "${sdsl-lite_INCLUDE}"
@@ -134,6 +131,7 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     "${sdsl-lite-divsufsort_LIB}/libdivsufsort.a"
     "${sdsl-lite-divsufsort_LIB}/libdivsufsort64.a"
     Threads::Threads
+    mio
     )
 elseif (TRUE)
   target_link_libraries(mmmulti
@@ -141,7 +139,9 @@ elseif (TRUE)
     "${sdsl-lite-divsufsort_LIB}/libdivsufsort.a"
     "${sdsl-lite-divsufsort_LIB}/libdivsufsort64.a"
     "-latomic"
+    "-lefence"
     Threads::Threads
+    mio
     )
 endif()
 
@@ -150,7 +150,7 @@ if (APPLE)
 elseif (TRUE)
   # this was hard to track down
   # https://stackoverflow.com/questions/35116327/when-g-static-link-pthread-cause-segmentation-fault-why
-  set(CMAKE_EXE_LINKER_FLAGS "-static -Wl,--whole-archive -lpthread -Wl,--no-whole-archive")
+  #set(CMAKE_EXE_LINKER_FLAGS "-static -Wl,--whole-archive -lpthread -Wl,--no-whole-archive")
 endif()
 
 

@@ -16,6 +16,8 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <mio/mmap.hpp>
+
 #include "sdsl/bit_vectors.hpp"
 #include "ips4o.hpp"
 #include "atomic_queue.h"
@@ -101,8 +103,6 @@ private:
 		bool operator()(const std::pair<Key,Value>& a, const std::pair<Key,Value>& b) const { return a < b; }
 	};
 
-    std::ofstream writer;
-    std::vector<std::ofstream> writers;
     char* reader = nullptr;
     int reader_fd = 0;
     std::string filename;
@@ -194,6 +194,12 @@ public:
     }
 
     void writer_func(void) {
+        assert(!filename.empty());
+        // remove the file; we only call this when making an index, and it's done once
+        std::ofstream writer(filename.c_str(), std::ios::binary | std::ios::trunc);
+        if (writer.fail()) {
+            throw std::ios_base::failure(std::strerror(errno));
+        }
         Entry entry;
         while (work_todo.load() || !entry_queue.was_empty()) {
             if (entry_queue.try_pop(entry)) {
@@ -209,24 +215,18 @@ public:
 
     // close/open backing file
     void open_writer(void) {
-        if (writer.is_open()) {
-            writer.seekp(0, std::ios_base::end); // seek to the end for appending
-            return;
+        if (!work_todo.load()) {
+            work_todo.store(true);
+            writer_thread = std::thread(&map::writer_func, this);
         }
-        assert(!filename.empty());
-        // remove the file; we only call this when making an index, and it's done once
-        writer.open(filename.c_str(), std::ios::binary | std::ios::trunc);
-        if (writer.fail()) {
-            throw std::ios_base::failure(std::strerror(errno));
-        }
-        work_todo.store(true);
-        writer_thread = std::thread(&map::writer_func, this);
     }
 
     void close_writer(void) {
         if (work_todo.load()) {
             work_todo.store(false);
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            while (!entry_queue.was_empty()) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            }
             if (writer_thread.joinable()) {
                 writer_thread.join();
             }

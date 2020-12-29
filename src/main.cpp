@@ -54,27 +54,27 @@ int main(int argc, char** argv) {
             std::uniform_int_distribution<uint64_t> dis(1, max_key);
             //std::vector<uint64_t> x; x.reserve(1e8);
             std::remove(args::get(test_file).c_str());
-            mmmulti::map<uint64_t, std::pair<uint64_t, uint64_t>> mm(args::get(test_file), std::make_pair(0,0));
+            auto mm = std::make_unique<mmmulti::map<uint64_t, std::pair<uint64_t, uint64_t>>>(args::get(test_file), std::make_pair(0,0));
             uint64_t x_len = args::get(test_size);
-            mm.open_writer();
+            mm->open_writer();
             paryfor::parallel_for<uint64_t>(
                 0, x_len, num_threads, 1000,
                 [&](uint64_t n) {
-                    mm.append(dis(gen), std::make_pair(dis(gen), dis(gen)));
+                    mm->append(dis(gen), std::make_pair(dis(gen), dis(gen)));
                 });
-            mm.index(num_threads, max_key);
+            mm->index(num_threads, max_key);
             uint64_t i = 0;
             uint64_t key_count = 0;
             uint64_t value_count = 0;
             uint64_t unique_value_count = 0;
             bool first = true;
             uint64_t last = 0;
-            mm.for_each_pair([&](const uint64_t& a, const std::pair<uint64_t, uint64_t>& b) {
+            mm->for_each_pair([&](const uint64_t& a, const std::pair<uint64_t, uint64_t>& b) {
                     if (first || a > last) {
                         ++key_count;
                         last = a;
                         first = false;
-                        mm.for_unique_values_of(a, [&](const std::pair<uint64_t, uint64_t>& v) {
+                        mm->for_unique_values_of(a, [&](const std::pair<uint64_t, uint64_t>& v) {
                                 ++unique_value_count;
                             });
                     }
@@ -86,7 +86,7 @@ int main(int argc, char** argv) {
             uint64_t x = 0;
             for (uint64_t i = 0; i < unique_value_test_count; ++i) {
                 uint64_t q = dis(gen);
-                mm.for_unique_values_of(q, [&](const std::pair<uint64_t, uint64_t>& v) {
+                mm->for_unique_values_of(q, [&](const std::pair<uint64_t, uint64_t>& v) {
                         ++x;
                     });
             }
