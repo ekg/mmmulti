@@ -229,9 +229,9 @@ int _main(int argc, char** argv) {
         std::cerr << "sums " << sum1 << " " << sum2 << std::endl;
     } else if (!args::get(test_file).empty() && args::get(test_iitree)) {
         //} else if (args::get(test_iitree)) {
+        /*
         std::remove(args::get(test_file).c_str());
         mmmulti::iitree<uint64_t, uint64_t> tree(args::get(test_file));
-        /*
         std::random_device rd;  //Will be used to obtain a seed for the random number engine
         std::mt19937 gen(rd()); //Standard mersenne_twister_engine seeded with rd()
         uint64_t max_value = args::get(max_val);

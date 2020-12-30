@@ -43,32 +43,18 @@ template <typename Key, typename Value> class map {
 
 private:
 
-    
-    // memory mapped buffer struct
-    struct mmap_buffer_t {
-        int fd;
-        off_t size;
-        void *data;
-    };
-
-    // utilities used by mmmultimap
-    /*
-    mio::mmap_sink get_mmap_buffer(const char* path) {
-        std::error_code error;
-        mio::mmap_sink mmap = mio::make_mmap_sink(
-            path, 0, mio::map_entire_file, error);
-        if (error) { return handle_error(error); }
-        return mmap;
-    }
-    */
-
+    // an entry is a POD struct of Key, Value
     typedef struct { Key key; Value value; } Entry;
+
+    // the comparator used to sort the backing array
     struct EntryLess {
-		bool operator()(const std::pair<Key,Value>& a, const std::pair<Key,Value>& b) const { return a < b; }
+		bool operator()(const Entry& a, const Entry& b) const {
+            return a.key < b.key || (!(a.key != b.key) && a.value < b.value);
+        }
 	};
 
+    // memory mapped buffer
     mio::mmap_source reader;
-    int reader_fd = 0;
     std::string filename;
     std::string index_filename;
     bool sorted = false;
@@ -86,6 +72,7 @@ private:
     sdsl::sd_vector<>::select_1_type key_cbv_select;
     bool indexed = false;
     uint32_t OUTPUT_VERSION = 1; // update as we change our format
+    // a single writer thread reads from an atomic queue and writes to our (unsorted) backing file
     std::thread writer_thread;
     atomic_queue::AtomicQueue2<Entry, 2 << 16> entry_queue;
     std::atomic<bool> work_todo;
@@ -102,8 +89,12 @@ public:
     class iterator;
     class const_iterator;
 
+    // make sure we and our friend the compiler don't try anything silly
     map(void) = delete;
-    
+    map(const map& m) = delete;
+    map(map&& m) = delete;
+    map& operator=(map&& m) = delete;
+
     // constructor
     map(Value nullv) { init(nullv); }
 
@@ -113,10 +104,6 @@ public:
         close_writer();
         close_reader();
     }
-
-    map(const map& m) = delete;
-    map(map&& m) = delete;
-    map& operator=(map&& m) = delete;
 
     void set_base_filename(const std::string& f) {
         filename = f;
@@ -261,8 +248,8 @@ public:
             filename.c_str(), 0, mio::map_entire_file, error);
         if (error) { assert(false); }
         // sort in parallel (uses OpenMP if available, std::thread otherwise)
-        ips4o::parallel::sort((std::pair<Key, Value>*)buffer.begin(),
-                              (std::pair<Key, Value>*)buffer.end(),
+        ips4o::parallel::sort((Entry*)buffer.begin(),
+                              (Entry*)buffer.end(),
                               EntryLess(),
                               num_threads);
         sorted = true;
