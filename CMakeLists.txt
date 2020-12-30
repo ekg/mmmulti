@@ -5,14 +5,16 @@ cmake_minimum_required(VERSION 3.1)
 # Project's name
 project(mmmulti)
 # We build using c++14
-set(CMAKE_CXX_STANDARD 14)
+set(CMAKE_CXX_STANDARD 17)
 
 set(THREADS_PREFER_PTHREAD_FLAG ON)
 find_package(Threads REQUIRED)
 
 # Use all standard-compliant optimizations
-set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -mcx16 -g")
-set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -mcx16 -g")
+#set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O3 -mcx16 -g")
+#set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O3 -mcx16 -g")
+set (CMAKE_C_FLAGS "${CMAKE_C_FLAGS} -O -mcx16 -g -fsanitize=address")
+set (CMAKE_CXX_FLAGS "${CMAKE_CXX_FLAGS} -O -mcx16 -g -fsanitize=address")
 
 # Set the output folder where your program will be created
 set(CMAKE_BINARY_DIR ${CMAKE_SOURCE_DIR}/bin)
@@ -37,9 +39,8 @@ include(${CMAKE_ROOT}/Modules/ExternalProject.cmake)
 
 # sdsl-lite (full build using its cmake config)
 ExternalProject_Add(sdsl-lite
-  GIT_REPOSITORY "https://github.com/simongog/sdsl-lite.git"
-  GIT_TAG "ddb0fbbc33bb183baa616f17eb48e261ac2a3672"
-  CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:PATH=${INSTALL_DIR} # TODO ADD static build flag
+  SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/sdsl-lite"
+  CMAKE_ARGS "${CMAKE_ARGS};-DCMAKE_INSTALL_PREFIX=<INSTALL_DIR>"
   UPDATE_COMMAND ""
   INSTALL_COMMAND "")
 ExternalProject_Get_property(sdsl-lite INSTALL_DIR)
@@ -50,45 +51,39 @@ set(sdsl-lite-divsufsort_LIB "${INSTALL_DIR}/src/sdsl-lite-build/external/libdiv
 
 # DYNAMIC (full build using its cmake config)
 ExternalProject_Add(dynamic
-  GIT_REPOSITORY "https://github.com/vgteam/DYNAMIC.git"
-  GIT_TAG "615d8be5276bcd4c5a3d8e31679b4f8e81b2eefc"
-  # we don't actually install dynamic... it's header only
-  #CMAKE_ARGS -DCMAKE_INSTALL_PREFIX:PATH=${INSTALL_DIR}
+  SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/DYNAMIC"
   UPDATE_COMMAND ""
   INSTALL_COMMAND ""
   BUILD_COMMAND ""
   CONFIGURE_COMMAND "")
-ExternalProject_Get_property(dynamic INSTALL_DIR)
-set(dynamic_INCLUDE "${INSTALL_DIR}/src/dynamic/include")
+ExternalProject_Get_property(dynamic SOURCE_DIR)
+set(dynamic_INCLUDE "${SOURCE_DIR}/include")
+
+ExternalProject_Add(hopscotch_map
+  SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/hopscotch-map"
+  UPDATE_COMMAND ""
+  INSTALL_COMMAND ""
+  BUILD_COMMAND ""
+  CONFIGURE_COMMAND "")
+ExternalProject_Get_property(hopscotch_map SOURCE_DIR)
+set(hopscotch_map_INCLUDE "${SOURCE_DIR}/include")
 
 # In-place Parallel Super Scalar Samplesort (IPS⁴o), header only
-ExternalProject_Add(ips4o
-  GIT_REPOSITORY "https://github.com/SaschaWitt/ips4o.git"
-  GIT_TAG "a34d7d40c0f1279510e35e0dc2c69637b3c5d0b6"
-  #GIT_REPOSITORY "https://github.com/ekg/ips4o.git"
-  #GIT_TAG "f7eccc5a26928b5c0772922f7b76072414ef1801"
-  UPDATE_COMMAND ""
-  INSTALL_COMMAND ""
-  BUILD_COMMAND ""
-  CONFIGURE_COMMAND "")
-ExternalProject_Get_property(ips4o SOURCE_DIR)
-set(ips4o_INCLUDE "${SOURCE_DIR}")
+add_subdirectory(${CMAKE_SOURCE_DIR}/deps/ips4o)
 
 # atomic queue
 ExternalProject_Add(atomicqueue
-  GIT_REPOSITORY "https://github.com/max0x7ba/atomic_queue.git"
-  GIT_TAG "430f732da0889b090705ad00ce15d4463fe7b536"
+  SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/atomic_queue/include/atomic_queue"
   UPDATE_COMMAND ""
   INSTALL_COMMAND ""
   BUILD_COMMAND ""
   CONFIGURE_COMMAND "")
 ExternalProject_Get_property(atomicqueue SOURCE_DIR)
-set(atomicqueue_INCLUDE "${SOURCE_DIR}")
+set(atomicqueue_INCLUDE "${SOURCE_DIR}/")
 
 # paryfor parallel_for
 ExternalProject_Add(paryfor
-  GIT_REPOSITORY "https://github.com/ekg/paryfor"
-  GIT_TAG "509b28a092f732a068e2908bb9e359a8562cd32f"
+  SOURCE_DIR "${CMAKE_SOURCE_DIR}/deps/paryfor"
   UPDATE_COMMAND ""
   INSTALL_COMMAND ""
   BUILD_COMMAND ""
@@ -99,7 +94,6 @@ set(paryfor_INCLUDE "${SOURCE_DIR}")
 # taywee's C++ args library, header only
 set(tayweeargs_INCLUDE deps/args)
 
-#TODO
 add_subdirectory(deps/mio)
 
 #set(CMAKE_BUILD_TYPE Release)
@@ -110,7 +104,6 @@ add_executable(mmmulti
   )
 add_dependencies(mmmulti sdsl-lite)
 add_dependencies(mmmulti dynamic)
-add_dependencies(mmmulti ips4o)
 add_dependencies(mmmulti atomicqueue)
 add_dependencies(mmmulti paryfor)
 
@@ -131,6 +124,7 @@ if (${CMAKE_SYSTEM_NAME} MATCHES "Darwin")
     "${sdsl-lite-divsufsort_LIB}/libdivsufsort.a"
     "${sdsl-lite-divsufsort_LIB}/libdivsufsort64.a"
     Threads::Threads
+    ips4o
     mio
     )
 elseif (TRUE)
@@ -139,8 +133,8 @@ elseif (TRUE)
     "${sdsl-lite-divsufsort_LIB}/libdivsufsort.a"
     "${sdsl-lite-divsufsort_LIB}/libdivsufsort64.a"
     "-latomic"
-    "-lefence"
     Threads::Threads
+    ips4o
     mio
     )
 endif()

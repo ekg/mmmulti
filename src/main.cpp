@@ -11,7 +11,7 @@
 #include "mmiitree.hpp"
 #include "paryfor.hpp"
 
-int main(int argc, char** argv) {
+int _main(int argc, char** argv) {
 
     args::ArgumentParser parser("memmapped multimap interface");
     args::HelpFlag help(parser, "help", "display this help summary", {'h', "help"});
@@ -57,11 +57,13 @@ int main(int argc, char** argv) {
             auto mm = std::make_unique<mmmulti::map<uint64_t, std::pair<uint64_t, uint64_t>>>(args::get(test_file), std::make_pair(0,0));
             uint64_t x_len = args::get(test_size);
             mm->open_writer();
+            std::cerr << "hi" << std::endl;
             paryfor::parallel_for<uint64_t>(
                 0, x_len, num_threads, 1000,
                 [&](uint64_t n) {
                     mm->append(dis(gen), std::make_pair(dis(gen), dis(gen)));
                 });
+            std::cerr << "done!!" << std::endl;
             mm->index(num_threads, max_key);
             uint64_t i = 0;
             uint64_t key_count = 0;
@@ -97,8 +99,10 @@ int main(int argc, char** argv) {
             std::cerr << value_count << " values" << std::endl;
             std::cerr << unique_value_count << " unique pairs" << std::endl;
             if (unique_value_test_count) std::cerr << elapsed_seconds.count()/unique_value_test_count << "s per unique value call" << std::endl;
+            mm.reset();
 
-        } else if (args::get(test_unpadded)) {
+        }
+        else if (args::get(test_unpadded)) {
             std::random_device rd;  //Will be used to obtain a seed for the random number engine
             std::mt19937 gen(rd()); //Standard mersenne_twister_engine seeded with rd()
             uint64_t max_key = args::get(max_val);
@@ -135,7 +139,8 @@ int main(int argc, char** argv) {
             std::cerr << value_count << " values" << std::endl;
             std::cerr << unique_value_count << " unique pairs (these can't be found with unpadded mmmultimaps)" << std::endl;
 
-        } else {
+        }
+        else {
             std::random_device rd;  //Will be used to obtain a seed for the random number engine
             std::mt19937 gen(rd()); //Standard mersenne_twister_engine seeded with rd()
             uint64_t max_key = args::get(max_val);
@@ -226,6 +231,7 @@ int main(int argc, char** argv) {
         //} else if (args::get(test_iitree)) {
         std::remove(args::get(test_file).c_str());
         mmmulti::iitree<uint64_t, uint64_t> tree(args::get(test_file));
+        /*
         std::random_device rd;  //Will be used to obtain a seed for the random number engine
         std::mt19937 gen(rd()); //Standard mersenne_twister_engine seeded with rd()
         uint64_t max_value = args::get(max_val);
@@ -253,14 +259,17 @@ int main(int argc, char** argv) {
                 });
         }
         std::cerr << std::endl;
-        /*
-        tree.for_each_entry([&](const mmmulti::iitree<uint64_t, uint64_t>::Interval& ival) {
-                std::cerr << ival.st << ".." << ival.en << " " << ival.data << std::endl;
-            });
-        */
+        //tree.for_each_entry([&](const mmmulti::iitree<uint64_t, uint64_t>::Interval& ival) {
+        //        std::cerr << ival.st << ".." << ival.en << " " << ival.data << std::endl;
+        //    });
         //std::cerr << std::endl;
+        */
     }
 
     return 0;
 
+}
+
+int main(int argc, char** argv) {
+    return _main(argc, argv);
 }

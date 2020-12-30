@@ -43,6 +43,7 @@ template <typename Key, typename Value> class map {
 
 private:
 
+    
     // memory mapped buffer struct
     struct mmap_buffer_t {
         int fd;
@@ -51,59 +52,22 @@ private:
     };
 
     // utilities used by mmmultimap
-    int open_mmap_buffer(const char* path, mmap_buffer_t* buffer) {
-        buffer->data = nullptr;
-        buffer->fd = open(path, O_RDWR);
-        if (buffer->fd == -1) {
-            goto error;
-        }
-        struct stat stats;
-        if (-1 == fstat(buffer->fd, &stats)) {
-            goto error;
-        }
-        if (!(buffer->data = mmap(nullptr,
-                                  stats.st_size,
-                                  PROT_READ | PROT_WRITE,
-                                  MAP_SHARED,
-                                  buffer->fd,
-                                  0
-                  ))) {
-            goto error;
-        }
-        madvise(buffer, stats.st_size, POSIX_MADV_WILLNEED | POSIX_MADV_SEQUENTIAL);
-        buffer->size = stats.st_size;
-        return 0;
-
-    error:
-        perror(path);
-        if (buffer->data)
-            munmap(buffer->data, stats.st_size);
-        if (buffer->fd != -1)
-            close(buffer->fd);
-        buffer->data = 0;
-        buffer->fd = 0;
-        return -1;
+    /*
+    mio::mmap_sink get_mmap_buffer(const char* path) {
+        std::error_code error;
+        mio::mmap_sink mmap = mio::make_mmap_sink(
+            path, 0, mio::map_entire_file, error);
+        if (error) { return handle_error(error); }
+        return mmap;
     }
-
-    void close_mmap_buffer(mmap_buffer_t* buffer) {
-        if (buffer->data) {
-            munmap(buffer->data, buffer->size);
-            buffer->data = 0;
-            buffer->size = 0;
-        }
-
-        if (buffer->fd) {
-            close(buffer->fd);
-            buffer->fd = 0;
-        }
-    }
+    */
 
     typedef struct { Key key; Value value; } Entry;
     struct EntryLess {
 		bool operator()(const std::pair<Key,Value>& a, const std::pair<Key,Value>& b) const { return a < b; }
 	};
 
-    char* reader = nullptr;
+    mio::mmap_source reader;
     int reader_fd = 0;
     std::string filename;
     std::string index_filename;
@@ -138,6 +102,8 @@ public:
     class iterator;
     class const_iterator;
 
+    map(void) = delete;
+    
     // constructor
     map(Value nullv) { init(nullv); }
 
@@ -147,6 +113,10 @@ public:
         close_writer();
         close_reader();
     }
+
+    map(const map& m) = delete;
+    map(map&& m) = delete;
+    map& operator=(map&& m) = delete;
 
     void set_base_filename(const std::string& f) {
         filename = f;
@@ -234,39 +204,15 @@ public:
     }
 
     void open_reader(void) {
-        if (reader_fd) return; //open
-        assert(!filename.empty());
-        // open in binary mode as we are reading from this interface
-        reader_fd = open(filename.c_str(), O_RDWR);
-        if (reader_fd == -1) {
-            assert(false);
-        }
-        struct stat stats;
-        if (-1 == fstat(reader_fd, &stats)) {
-            assert(false);
-        }
-        if (!(reader =
-              (char*) mmap(NULL,
-                           stats.st_size,
-                           PROT_READ | PROT_WRITE,
-                           MAP_SHARED,
-                           reader_fd,
-                           0))) {
-            assert(false);
-        }
-        madvise((void*)reader, stats.st_size, POSIX_MADV_WILLNEED | POSIX_MADV_SEQUENTIAL);
+        if (reader.is_mapped()) return;
+        std::error_code error;
+        reader = mio::make_mmap_source(
+            filename.c_str(), 0, mio::map_entire_file, error);
+        if (error) { assert(false); }
     }
 
     void close_reader(void) {
-        if (reader != nullptr) {
-            size_t c = record_count();
-            munmap(reader, c * record_size);
-            reader = nullptr;
-        }
-        if (reader_fd) {
-            close(reader_fd);
-            reader_fd = 0;
-        }
+        if (reader.is_mapped()) reader.unmap();
     }
 
     /// write the pair to the backing file
@@ -283,11 +229,6 @@ public:
     /// return the size of each combined record
     size_t get_record_size(void) const {
         return record_size;
-    }
-
-    /// return the backing buffer
-    char* get_buffer(void) const {
-        return reader;
     }
 
     /// get the record count
@@ -315,15 +256,15 @@ public:
     void sort(int num_threads) {
         if (sorted) return;
         //std::cerr << "sorting!" << std::endl;
-        mmap_buffer_t buffer;
-        open_mmap_buffer(filename.c_str(), &buffer);
-        uint64_t data_len = buffer.size/record_size;
+        std::error_code error;
+        mio::mmap_sink buffer = mio::make_mmap_sink(
+            filename.c_str(), 0, mio::map_entire_file, error);
+        if (error) { assert(false); }
         // sort in parallel (uses OpenMP if available, std::thread otherwise)
-        ips4o::parallel::sort((std::pair<Key, Value>*)buffer.data,
-                              ((std::pair<Key, Value>*)buffer.data)+data_len,
+        ips4o::parallel::sort((std::pair<Key, Value>*)buffer.begin(),
+                              (std::pair<Key, Value>*)buffer.end(),
                               EntryLess(),
                               num_threads);
-        close_mmap_buffer(&buffer);
         sorted = true;
     }
 
