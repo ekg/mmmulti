@@ -190,6 +190,7 @@ public:
         }
     }
 
+    // è mio
     void open_reader(void) {
         if (reader.is_mapped()) return;
         std::error_code error;
