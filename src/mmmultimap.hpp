@@ -16,6 +16,8 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <mio/mmap.hpp>
+
 #include "sdsl/bit_vectors.hpp"
 #include "ips4o.hpp"
 #include "atomic_queue.h"
@@ -41,70 +43,18 @@ template <typename Key, typename Value> class map {
 
 private:
 
-    // memory mapped buffer struct
-    struct mmap_buffer_t {
-        int fd;
-        off_t size;
-        void *data;
-    };
-
-    // utilities used by mmmultimap
-    int open_mmap_buffer(const char* path, mmap_buffer_t* buffer) {
-        buffer->data = nullptr;
-        buffer->fd = open(path, O_RDWR);
-        if (buffer->fd == -1) {
-            goto error;
-        }
-        struct stat stats;
-        if (-1 == fstat(buffer->fd, &stats)) {
-            goto error;
-        }
-        if (!(buffer->data = mmap(nullptr,
-                                  stats.st_size,
-                                  PROT_READ | PROT_WRITE,
-                                  MAP_SHARED,
-                                  buffer->fd,
-                                  0
-                  ))) {
-            goto error;
-        }
-        madvise(buffer, stats.st_size, POSIX_MADV_WILLNEED | POSIX_MADV_SEQUENTIAL);
-        buffer->size = stats.st_size;
-        return 0;
-
-    error:
-        perror(path);
-        if (buffer->data)
-            munmap(buffer->data, stats.st_size);
-        if (buffer->fd != -1)
-            close(buffer->fd);
-        buffer->data = 0;
-        buffer->fd = 0;
-        return -1;
-    }
-
-    void close_mmap_buffer(mmap_buffer_t* buffer) {
-        if (buffer->data) {
-            munmap(buffer->data, buffer->size);
-            buffer->data = 0;
-            buffer->size = 0;
-        }
-
-        if (buffer->fd) {
-            close(buffer->fd);
-            buffer->fd = 0;
-        }
-    }
-
+    // an entry is a POD struct of Key, Value
     typedef struct { Key key; Value value; } Entry;
+
+    // the comparator used to sort the backing array
     struct EntryLess {
-		bool operator()(const std::pair<Key,Value>& a, const std::pair<Key,Value>& b) const { return a < b; }
+		bool operator()(const Entry& a, const Entry& b) const {
+            return a.key < b.key || (!(a.key != b.key) && a.value < b.value);
+        }
 	};
 
-    std::ofstream writer;
-    std::vector<std::ofstream> writers;
-    char* reader = nullptr;
-    int reader_fd = 0;
+    // memory mapped buffer
+    mio::mmap_source reader;
     std::string filename;
     std::string index_filename;
     bool sorted = false;
@@ -122,6 +72,7 @@ private:
     sdsl::sd_vector<>::select_1_type key_cbv_select;
     bool indexed = false;
     uint32_t OUTPUT_VERSION = 1; // update as we change our format
+    // a single writer thread reads from an atomic queue and writes to our (unsorted) backing file
     std::thread writer_thread;
     atomic_queue::AtomicQueue2<Entry, 2 << 16> entry_queue;
     std::atomic<bool> work_todo;
@@ -137,6 +88,12 @@ public:
     // forward declaration for iterator types
     class iterator;
     class const_iterator;
+
+    // make sure we and our friend the compiler don't try anything silly
+    map(void) = delete;
+    map(const map& m) = delete;
+    map(map&& m) = delete;
+    map& operator=(map&& m) = delete;
 
     // constructor
     map(Value nullv) { init(nullv); }
@@ -194,6 +151,12 @@ public:
     }
 
     void writer_func(void) {
+        assert(!filename.empty());
+        // remove the file; we only call this when making an index, and it's done once
+        std::ofstream writer(filename.c_str(), std::ios::binary | std::ios::trunc);
+        if (writer.fail()) {
+            throw std::ios_base::failure(std::strerror(errno));
+        }
         Entry entry;
         while (work_todo.load() || !entry_queue.was_empty()) {
             if (entry_queue.try_pop(entry)) {
@@ -209,64 +172,35 @@ public:
 
     // close/open backing file
     void open_writer(void) {
-        if (writer.is_open()) {
-            writer.seekp(0, std::ios_base::end); // seek to the end for appending
-            return;
+        if (!work_todo.load()) {
+            work_todo.store(true);
+            writer_thread = std::thread(&map::writer_func, this);
         }
-        assert(!filename.empty());
-        // remove the file; we only call this when making an index, and it's done once
-        writer.open(filename.c_str(), std::ios::binary | std::ios::trunc);
-        if (writer.fail()) {
-            throw std::ios_base::failure(std::strerror(errno));
-        }
-        work_todo.store(true);
-        writer_thread = std::thread(&map::writer_func, this);
     }
 
     void close_writer(void) {
         if (work_todo.load()) {
             work_todo.store(false);
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            while (!entry_queue.was_empty()) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            }
             if (writer_thread.joinable()) {
                 writer_thread.join();
             }
         }
     }
 
+    // è mio
     void open_reader(void) {
-        if (reader_fd) return; //open
-        assert(!filename.empty());
-        // open in binary mode as we are reading from this interface
-        reader_fd = open(filename.c_str(), O_RDWR);
-        if (reader_fd == -1) {
-            assert(false);
-        }
-        struct stat stats;
-        if (-1 == fstat(reader_fd, &stats)) {
-            assert(false);
-        }
-        if (!(reader =
-              (char*) mmap(NULL,
-                           stats.st_size,
-                           PROT_READ | PROT_WRITE,
-                           MAP_SHARED,
-                           reader_fd,
-                           0))) {
-            assert(false);
-        }
-        madvise((void*)reader, stats.st_size, POSIX_MADV_WILLNEED | POSIX_MADV_SEQUENTIAL);
+        if (reader.is_mapped()) return;
+        std::error_code error;
+        reader = mio::make_mmap_source(
+            filename.c_str(), 0, mio::map_entire_file, error);
+        if (error) { assert(false); }
     }
 
     void close_reader(void) {
-        if (reader != nullptr) {
-            size_t c = record_count();
-            munmap(reader, c * record_size);
-            reader = nullptr;
-        }
-        if (reader_fd) {
-            close(reader_fd);
-            reader_fd = 0;
-        }
+        if (reader.is_mapped()) reader.unmap();
     }
 
     /// write the pair to the backing file
@@ -285,25 +219,9 @@ public:
         return record_size;
     }
 
-    /// return the backing buffer
-    char* get_buffer(void) const {
-        return reader;
-    }
-
     /// get the record count
     size_t record_count(void) {
-        int fd = open(filename.c_str(), O_RDONLY);
-        if (fd == -1) {
-            assert(false);
-        }
-        struct stat stats;
-        if (-1 == fstat(fd, &stats)) {
-            assert(false);
-        }
-        assert(stats.st_size % record_size == 0); // must be even records
-        size_t count = stats.st_size / record_size;
-        close(fd);
-        return count;
+        return reader.size() / sizeof(Entry);
     }
 
     std::ifstream::pos_type filesize(const char* filename) {
@@ -315,15 +233,15 @@ public:
     void sort(int num_threads) {
         if (sorted) return;
         //std::cerr << "sorting!" << std::endl;
-        mmap_buffer_t buffer;
-        open_mmap_buffer(filename.c_str(), &buffer);
-        uint64_t data_len = buffer.size/record_size;
+        std::error_code error;
+        mio::mmap_sink buffer = mio::make_mmap_sink(
+            filename.c_str(), 0, mio::map_entire_file, error);
+        if (error) { assert(false); }
         // sort in parallel (uses OpenMP if available, std::thread otherwise)
-        ips4o::parallel::sort((std::pair<Key, Value>*)buffer.data,
-                              ((std::pair<Key, Value>*)buffer.data)+data_len,
+        ips4o::parallel::sort((Entry*)buffer.begin(),
+                              (Entry*)buffer.end(),
                               EntryLess(),
                               num_threads);
-        close_mmap_buffer(&buffer);
         sorted = true;
     }
 

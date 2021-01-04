@@ -16,6 +16,8 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <mio/mmap.hpp>
+
 #include "sdsl/bit_vectors.hpp"
 #include "ips4o.hpp"
 #include "atomic_queue.h"
@@ -32,70 +34,12 @@ of the multiset, such as to obtain their counts.
 
 template <typename Value> class set {
 
-private:
-    
-    // memory mapped buffer struct
-    struct mmap_buffer_t {
-        int fd;
-        off_t size;
-        void *data;
-    };
-
-    // utilities used by mmmultimap
-    int open_mmap_buffer(const char* path, mmap_buffer_t* buffer) {
-        buffer->data = nullptr;
-        buffer->fd = open(path, O_RDWR);
-        if (buffer->fd == -1) {
-            goto error;
-        }
-        struct stat stats;
-        if (-1 == fstat(buffer->fd, &stats)) {
-            goto error;
-        }
-        if (!(buffer->data = mmap(nullptr,
-                                  stats.st_size,
-                                  PROT_READ | PROT_WRITE,
-                                  MAP_SHARED,
-                                  buffer->fd,
-                                  0
-                  ))) {
-            goto error;
-        }
-        madvise(buffer, stats.st_size, POSIX_MADV_WILLNEED | POSIX_MADV_SEQUENTIAL);
-        buffer->size = stats.st_size;
-        return 0;
-
-    error:
-        perror(path);
-        if (buffer->data)
-            munmap(buffer->data, stats.st_size);
-        if (buffer->fd != -1)
-            close(buffer->fd);
-        buffer->data = 0;
-        buffer->fd = 0;
-        return -1;
-    }
-
-    void close_mmap_buffer(mmap_buffer_t* buffer) {
-        if (buffer->data) {
-            munmap(buffer->data, buffer->size);
-            buffer->data = 0;
-            buffer->size = 0;
-        }
-
-        if (buffer->fd) {
-            close(buffer->fd);
-            buffer->fd = 0;
-        }
-    }
-
     struct ValueLess {
         bool operator()(const Value &a, const Value &b) const { return a < b; }
 	};
-    
-    std::ofstream writer;
-    char* reader = nullptr;
-    int reader_fd = 0;
+
+
+    mio::mmap_source reader;
     std::string filename;
     std::string index_filename;
     bool sorted = false;
@@ -111,10 +55,13 @@ public:
     // forward declaration for iterator types
     class iterator;
     class const_iterator;
-    
-    // constructor
-    set(void) { }
 
+    // make sure we and our friend the compiler don't try anything silly
+    set(void) = delete;
+    set(const set& m) = delete;
+    set(set&& m) = delete;
+    set& operator=(set&& m) = delete;
+    
     set(const std::string& f) : filename(f) { }
 
     ~set(void) {
@@ -127,6 +74,10 @@ public:
     }
 
     void writer_func(void) {
+        std::ofstream writer(filename.c_str(), std::ios::binary | std::ios::trunc);
+        if (writer.fail()) {
+            throw std::ios_base::failure(std::strerror(errno));
+        }
         Value value;
         while (work_todo.load() || !value_queue.was_empty()) {
             if (value_queue.try_pop(value)) {
@@ -140,66 +91,37 @@ public:
         writer.close();
     }
 
-    // close/open backing file
+    // open backing file and start writer_thread
     void open_writer(void) {
-        if (writer.is_open()) {
-            writer.seekp(0, std::ios_base::end); // seek to the end for appending
-            return;
+        if (!work_todo.load()) {
+            work_todo.store(true);
+            writer_thread = std::thread(&set::writer_func, this);
         }
-        assert(!filename.empty());
-        // remove the file; we only call this when making an index, and it's done once
-        writer.open(filename.c_str(), std::ios::binary | std::ios::trunc);
-        if (writer.fail()) {
-            throw std::ios_base::failure(std::strerror(errno));
-        }
-        work_todo.store(true);
-        writer_thread = std::thread(&set::writer_func, this);
     }
 
     void close_writer(void) {
         if (work_todo.load()) {
             work_todo.store(false);
-            std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            while (!value_queue.was_empty()) {
+                std::this_thread::sleep_for(std::chrono::milliseconds(1));
+            }
             if (writer_thread.joinable()) {
                 writer_thread.join();
             }
         }
     }
 
+    // è mio
     void open_reader(void) {
-        if (reader_fd) return; //open
-        assert(!filename.empty());
-        // open in binary mode as we are reading from this interface
-        reader_fd = open(filename.c_str(), O_RDWR);
-        if (reader_fd == -1) {
-            assert(false);
-        }
-        struct stat stats;
-        if (-1 == fstat(reader_fd, &stats)) {
-            assert(false);
-        }
-        if (!(reader =
-              (char*) mmap(NULL,
-                            stats.st_size,
-                            PROT_READ | PROT_WRITE,
-                            MAP_SHARED,
-                            reader_fd,
-                            0))) {
-            assert(false);
-        }
-        madvise((void*)reader, stats.st_size, POSIX_MADV_WILLNEED | POSIX_MADV_SEQUENTIAL);
+        if (reader.is_mapped()) return;
+        std::error_code error;
+        reader = mio::make_mmap_source(
+            filename.c_str(), 0, mio::map_entire_file, error);
+        if (error) { assert(false); }
     }
 
     void close_reader(void) {
-        if (reader) {
-            size_t c = record_count();
-            munmap(reader, c * get_record_size());
-            reader = 0;
-        }
-        if (reader_fd) {
-            close(reader_fd);
-            reader_fd = 0;
-        }
+        if (reader.is_mapped()) reader.unmap();
     }
 
     /// write the pair to end of backing file
@@ -215,22 +137,22 @@ public:
     
     /// iterator to first value
     iterator begin(void) {
-        return iterator((Value*)reader);
+        return iterator((Value*)reader.begin());
     }
     
     /// iterator to one past end
     iterator end(void) {
-        return iterator(((Value*)reader)+n_records);
+        return iterator((Value*)reader.end());
     }
 
     /// const iterator to first value
     const_iterator begin(void) const {
-        return const_iterator((Value*)reader);
+        return const_iterator((Value*)reader.begin());
     }
 
     /// const iterator to one past end
     const_iterator end(void) const {
-        return const_iterator(((Value*)reader)+n_records);
+        return const_iterator((Value*)reader.end());
     }
 
     /// return the size of each combined record
@@ -238,50 +160,31 @@ public:
         return sizeof(Value);
     }
 
-    /// return the backing buffer
-    char* get_buffer(void) const {
-        return reader;
-    }
-
     /// get the record count
     size_t record_count(void) {
-        int fd = open(filename.c_str(), O_RDWR);
-        if (fd == -1) {
-            assert(false);
-        }
-        struct stat stats;
-        if (-1 == fstat(fd, &stats)) {
-            assert(false);
-        }
-        assert(stats.st_size % get_record_size() == 0); // must be even records
-        size_t count = stats.st_size / sizeof(Value);
-        close(fd);
-        return count;
+        return reader.size() / sizeof(Value);
     }
 
     std::ifstream::pos_type filesize(const char* filename) {
         std::ifstream in(filename, std::ifstream::ate | std::ifstream::binary);
         return in.tellg();
     }
-    
-    /// sort the record in the backing file by key
+
     void sort(int num_threads) {
-        close_writer();
-        close_reader();
         if (sorted) return;
         //std::cerr << "sorting!" << std::endl;
-        mmap_buffer_t buffer;
-        open_mmap_buffer(filename.c_str(), &buffer);
-        uint64_t data_len = buffer.size/sizeof(Value);
+        std::error_code error;
+        mio::mmap_sink buffer = mio::make_mmap_sink(
+            filename.c_str(), 0, mio::map_entire_file, error);
+        if (error) { assert(false); }
         // sort in parallel (uses OpenMP if available, std::thread otherwise)
-        ips4o::parallel::sort((Value*)buffer.data,
-                              ((Value*)buffer.data)+data_len,
+        ips4o::parallel::sort((Value*)buffer.begin(),
+                              (Value*)buffer.end(),
                               ValueLess(),
                               num_threads);
-        close_mmap_buffer(&buffer);
         sorted = true;
     }
-
+    
     Value read_value(size_t i) const {
         Value v;
         memcpy(&v, &reader[i*sizeof(Value)], sizeof(Value));
@@ -298,6 +201,12 @@ public:
         open_reader();
     }
 
+
+
+    // todo we make a big change, pulling in all the stuff from mmmultimap
+    
+    
+    
     void for_each_value(const std::function<void(const Value&)>& lambda) const {
         for (size_t i = 0; i < n_records; ++i) {
             lambda(read_value(i));

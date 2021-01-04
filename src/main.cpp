@@ -46,35 +46,39 @@ int main(int argc, char** argv) {
         num_threads = args::get(threads);
     }
 
+    std::random_device rd;  //Will be used to obtain a seed for the random number engine
+    // these both stack smash! why??
+    //std::mt19937 gen(100); //Standard mersenne_twister_engine seeded with rd()
+    //std::mt19937_64 gen(100); //Standard mersenne_twister_engine seeded with rd();
+    std::default_random_engine gen(rd());
+
     if (!args::get(test_file).empty() && !args::get(test_multiset) && !args::get(test_iitree)) {
         if (args::get(test_complex)) {
-            std::random_device rd;  //Will be used to obtain a seed for the random number engine
-            std::mt19937 gen(rd()); //Standard mersenne_twister_engine seeded with rd()
             uint64_t max_key = args::get(max_val);
             std::uniform_int_distribution<uint64_t> dis(1, max_key);
             //std::vector<uint64_t> x; x.reserve(1e8);
             std::remove(args::get(test_file).c_str());
-            mmmulti::map<uint64_t, std::pair<uint64_t, uint64_t>> mm(args::get(test_file), std::make_pair(0,0));
+            auto mm = std::make_unique<mmmulti::map<uint64_t, std::pair<uint64_t, uint64_t>>>(args::get(test_file), std::make_pair(0,0));
             uint64_t x_len = args::get(test_size);
-            mm.open_writer();
+            mm->open_writer();
             paryfor::parallel_for<uint64_t>(
                 0, x_len, num_threads, 1000,
                 [&](uint64_t n) {
-                    mm.append(dis(gen), std::make_pair(dis(gen), dis(gen)));
+                    mm->append(dis(gen), std::make_pair(dis(gen), dis(gen)));
                 });
-            mm.index(num_threads, max_key);
+            mm->index(num_threads, max_key);
             uint64_t i = 0;
             uint64_t key_count = 0;
             uint64_t value_count = 0;
             uint64_t unique_value_count = 0;
             bool first = true;
             uint64_t last = 0;
-            mm.for_each_pair([&](const uint64_t& a, const std::pair<uint64_t, uint64_t>& b) {
+            mm->for_each_pair([&](const uint64_t& a, const std::pair<uint64_t, uint64_t>& b) {
                     if (first || a > last) {
                         ++key_count;
                         last = a;
                         first = false;
-                        mm.for_unique_values_of(a, [&](const std::pair<uint64_t, uint64_t>& v) {
+                        mm->for_unique_values_of(a, [&](const std::pair<uint64_t, uint64_t>& v) {
                                 ++unique_value_count;
                             });
                     }
@@ -86,7 +90,7 @@ int main(int argc, char** argv) {
             uint64_t x = 0;
             for (uint64_t i = 0; i < unique_value_test_count; ++i) {
                 uint64_t q = dis(gen);
-                mm.for_unique_values_of(q, [&](const std::pair<uint64_t, uint64_t>& v) {
+                mm->for_unique_values_of(q, [&](const std::pair<uint64_t, uint64_t>& v) {
                         ++x;
                     });
             }
@@ -97,35 +101,35 @@ int main(int argc, char** argv) {
             std::cerr << value_count << " values" << std::endl;
             std::cerr << unique_value_count << " unique pairs" << std::endl;
             if (unique_value_test_count) std::cerr << elapsed_seconds.count()/unique_value_test_count << "s per unique value call" << std::endl;
+            mm.reset();
 
-        } else if (args::get(test_unpadded)) {
-            std::random_device rd;  //Will be used to obtain a seed for the random number engine
-            std::mt19937 gen(rd()); //Standard mersenne_twister_engine seeded with rd()
+        }
+        else if (args::get(test_unpadded)) {
             uint64_t max_key = args::get(max_val);
             std::uniform_int_distribution<uint64_t> dis(1, max_key);
             //std::vector<uint64_t> x; x.reserve(1e8);
             std::remove(args::get(test_file).c_str());
-            mmmulti::map<uint64_t, uint64_t> mm(args::get(test_file), 0);
+            auto mm = std::make_unique<mmmulti::map<uint64_t, uint64_t>>(args::get(test_file), 0);
             uint64_t x_len = args::get(test_size);
-            mm.open_writer();
+            mm->open_writer();
             paryfor::parallel_for<uint64_t>(
                 0, x_len, num_threads, 1000,
                 [&](uint64_t n) {
-                    mm.append(dis(gen), dis(gen));
+                    mm->append(dis(gen), dis(gen));
                 });
-            mm.index(num_threads);
+            mm->index(num_threads);
             uint64_t i = 0;
             uint64_t key_count = 0;
             uint64_t value_count = 0;
             uint64_t unique_value_count = 0;
             bool first = true;
             uint64_t last = 0;
-            mm.for_each_pair([&](const uint64_t& a, const uint64_t& b) {
+            mm->for_each_pair([&](const uint64_t& a, const uint64_t& b) {
                     if (first || a > last) {
                         ++key_count;
                         last = a;
                         first = false;
-                        mm.for_unique_values_of(a, [&](const uint64_t& v) {
+                        mm->for_unique_values_of(a, [&](const uint64_t& v) {
                                 ++unique_value_count;
                             });
                     }
@@ -134,35 +138,33 @@ int main(int argc, char** argv) {
             std::cerr << key_count << " keys" << std::endl;
             std::cerr << value_count << " values" << std::endl;
             std::cerr << unique_value_count << " unique pairs (these can't be found with unpadded mmmultimaps)" << std::endl;
-
-        } else {
-            std::random_device rd;  //Will be used to obtain a seed for the random number engine
-            std::mt19937 gen(rd()); //Standard mersenne_twister_engine seeded with rd()
+        }
+        else {
             uint64_t max_key = args::get(max_val);
             std::uniform_int_distribution<uint64_t> dis(1, max_key);
             //std::vector<uint64_t> x; x.reserve(1e8);
             std::remove(args::get(test_file).c_str());
-            mmmulti::map<uint64_t, uint64_t> mm(args::get(test_file), 0);
+            auto mm = std::make_unique<mmmulti::map<uint64_t, uint64_t>>(args::get(test_file), 0);
             uint64_t x_len = args::get(test_size);
-            mm.open_writer();
+            mm->open_writer();
             paryfor::parallel_for<uint64_t>(
                 0, x_len, num_threads, 1000,
                 [&](uint64_t n) {
-                    mm.append(dis(gen), dis(gen));
+                    mm->append(dis(gen), dis(gen));
                 });
-            mm.index(num_threads, max_key);
+            mm->index(num_threads, max_key);
             uint64_t i = 0;
             uint64_t key_count = 0;
             uint64_t value_count = 0;
             uint64_t unique_value_count = 0;
             bool first = true;
             uint64_t last = 0;
-            mm.for_each_pair([&](const uint64_t& a, const uint64_t& b) {
+            mm->for_each_pair([&](const uint64_t& a, const uint64_t& b) {
                     if (first || a > last) {
                         ++key_count;
                         last = a;
                         first = false;
-                        mm.for_unique_values_of(a, [&](const uint64_t& v) {
+                        mm->for_unique_values_of(a, [&](const uint64_t& v) {
                                 ++unique_value_count;
                             });
                     }
@@ -174,7 +176,7 @@ int main(int argc, char** argv) {
             uint64_t x = 0;
             for (uint64_t i = 0; i < unique_value_test_count; ++i) {
                 uint64_t q = dis(gen);
-                mm.for_unique_values_of(q, [&](const uint64_t& v) {
+                mm->for_unique_values_of(q, [&](const uint64_t& v) {
                         ++x;
                     });
             }
@@ -187,35 +189,33 @@ int main(int argc, char** argv) {
             if (unique_value_test_count) std::cerr << elapsed_seconds.count()/unique_value_test_count << "s per unique value call" << std::endl;
         }
     } else if (!args::get(test_file).empty() && args::get(test_multiset)) {
-        std::random_device rd;  //Will be used to obtain a seed for the random number engine
-        std::mt19937 gen(rd()); //Standard mersenne_twister_engine seeded with rd()
         uint64_t max_value = args::get(max_val);
         std::uniform_int_distribution<uint64_t> dis(1, max_value);
         //std::vector<uint64_t> x; x.reserve(1e8);
         std::remove(args::get(test_file).c_str());
-        mmmulti::set<uint64_t> ms(args::get(test_file));
+        auto ms = std::make_unique<mmmulti::set<uint64_t>>(args::get(test_file));
         uint64_t x_len = args::get(test_size);
-        ms.open_writer();
+        ms->open_writer();
         paryfor::parallel_for<uint64_t>(
             0, x_len, num_threads, 1000,
             [&](uint64_t n) {
                 //Use dis to transform the random unsigned int generated by gen into an int in the range
-                ms.append(dis(gen));
+                ms->append(dis(gen));
             });
-        ms.index(num_threads);
+        ms->index(num_threads);
         uint64_t i = 0;
         uint64_t value_count = 0;
         uint64_t unique_value_count = 0;
         uint64_t sum1 = 0;
         // exercise unique value search
-        ms.for_each_value_count([&](const uint64_t& value, const uint64_t& count) {
+        ms->for_each_value_count([&](const uint64_t& value, const uint64_t& count) {
                 ++unique_value_count;
                 value_count += count;
                 sum1 += count * value;
             });
         uint64_t second_count = 0;
         uint64_t sum2 = 0;
-        for (auto v = ms.begin(); v != ms.end(); ++v) {
+        for (auto v = ms->begin(); v != ms->end(); ++v) {
             ++second_count;
             sum2 += *v;
         }
@@ -225,24 +225,22 @@ int main(int argc, char** argv) {
     } else if (!args::get(test_file).empty() && args::get(test_iitree)) {
         //} else if (args::get(test_iitree)) {
         std::remove(args::get(test_file).c_str());
-        mmmulti::iitree<uint64_t, uint64_t> tree(args::get(test_file));
-        std::random_device rd;  //Will be used to obtain a seed for the random number engine
-        std::mt19937 gen(rd()); //Standard mersenne_twister_engine seeded with rd()
+        auto tree = std::make_unique<mmmulti::iitree<uint64_t, uint64_t>>(args::get(test_file));
         uint64_t max_value = args::get(max_val);
         std::uniform_int_distribution<uint64_t> dis(0, max_value);
         uint64_t x_len = args::get(test_size);
-        tree.open_writer();
+        tree->open_writer();
         paryfor::parallel_for<uint64_t>(
             0, x_len, num_threads, 1000,
             [&](uint64_t n) {
                 uint64_t q = dis(gen);
                 uint64_t r = std::min(q + 100, max_value);
-                tree.add(q, r, dis(gen));
+                tree->add(q, r, dis(gen));
             });
-        tree.index(num_threads);
+        tree->index(num_threads);
         for (int n=0; n<max_value; ++n) {
             if (n % 1000 == 0) std::cerr << n << "\r";
-            tree.overlap(
+            tree->overlap(
                 n, n+1,
                 [&](const uint64_t& start,
                     const uint64_t& end,
@@ -253,11 +251,9 @@ int main(int argc, char** argv) {
                 });
         }
         std::cerr << std::endl;
-        /*
-        tree.for_each_entry([&](const mmmulti::iitree<uint64_t, uint64_t>::Interval& ival) {
-                std::cerr << ival.st << ".." << ival.en << " " << ival.data << std::endl;
-            });
-        */
+        //tree->for_each_entry([&](const mmmulti::iitree<uint64_t, uint64_t>::Interval& ival) {
+        //        std::cerr << ival.st << ".." << ival.en << " " << ival.data << std::endl;
+        //    });
         //std::cerr << std::endl;
     }
 
