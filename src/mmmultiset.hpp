@@ -150,7 +150,6 @@ public:
 
     /// const iterator to one past end
     const_iterator end(void) const {
-        //return const_iterator(((Value*)reader.begin())+n_records);
         return const_iterator((Value*)reader.end());
     }
 
