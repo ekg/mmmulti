@@ -3,7 +3,6 @@
 #include <limits>
 #include <cassert>
 #include <chrono>
-#include "ips4o.hpp"
 #include "args.hxx"
 #include <utility>
 #include "mmmultimap.hpp"

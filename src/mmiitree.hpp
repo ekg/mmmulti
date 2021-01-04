@@ -126,7 +126,9 @@ public:
     class iterator;
     class const_iterator;
     
-    iitree(const std::string& f) : filename(f) { }
+    iitree(const std::string& f) : filename(f) {
+        work_todo.store(false);
+    }
 
     ~iitree(void) {
         close_writer();

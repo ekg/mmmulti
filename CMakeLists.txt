@@ -113,7 +113,6 @@ target_include_directories(mmmulti PUBLIC
   "${sdsl-lite_INCLUDE}"
   "${sdsl-lite-divsufsort_INCLUDE}"
   "${dynamic_INCLUDE}"
-  "${ips4o_INCLUDE}"
   "${atomicqueue_INCLUDE}"
   "${paryfor_INCLUDE}"
   "${tayweeargs_INCLUDE}")

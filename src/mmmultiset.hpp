@@ -61,8 +61,10 @@ public:
     set(const set& m) = delete;
     set(set&& m) = delete;
     set& operator=(set&& m) = delete;
-    
-    set(const std::string& f) : filename(f) { }
+
+    set(const std::string& f) : filename(f) {
+        work_todo.store(false);
+    }
 
     ~set(void) {
         close_writer();

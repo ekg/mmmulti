@@ -81,6 +81,7 @@ private:
         record_size = sizeof(Key) + sizeof(Value);
         nullkey = 0;
         nullvalue = nullv;
+        work_todo.store(false);
     }
 
 public:
