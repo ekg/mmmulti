@@ -16,6 +16,8 @@
 #include <sys/types.h>
 #include <unistd.h>
 
+#include <mio/mmap.hpp>
+
 #include "sdsl/bit_vectors.hpp"
 #include "ips4o.hpp"
 #include "atomic_queue.h"
@@ -160,18 +162,7 @@ public:
 
     /// get the record count
     size_t record_count(void) {
-        int fd = open(filename.c_str(), O_RDWR);
-        if (fd == -1) {
-            assert(false);
-        }
-        struct stat stats;
-        if (-1 == fstat(fd, &stats)) {
-            assert(false);
-        }
-        assert(stats.st_size % get_record_size() == 0); // must be even records
-        size_t count = stats.st_size / sizeof(Value);
-        close(fd);
-        return count;
+        return reader.size() / sizeof(Value);
     }
 
     std::ifstream::pos_type filesize(const char* filename) {

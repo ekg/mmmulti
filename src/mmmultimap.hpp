@@ -221,18 +221,7 @@ public:
 
     /// get the record count
     size_t record_count(void) {
-        int fd = open(filename.c_str(), O_RDONLY);
-        if (fd == -1) {
-            assert(false);
-        }
-        struct stat stats;
-        if (-1 == fstat(fd, &stats)) {
-            assert(false);
-        }
-        assert(stats.st_size % record_size == 0); // must be even records
-        size_t count = stats.st_size / record_size;
-        close(fd);
-        return count;
+        return reader.size() / sizeof(Entry);
     }
 
     std::ifstream::pos_type filesize(const char* filename) {
