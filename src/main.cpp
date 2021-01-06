@@ -249,7 +249,7 @@ int main(int argc, char** argv) {
                     }
                 });
         }
-        std::cerr << std::endl;
+        std::cerr << max_value << std::endl;
         //tree->for_each_entry([&](const mmmulti::iitree<uint64_t, uint64_t>::Interval& ival) {
         //        std::cerr << ival.st << ".." << ival.en << " " << ival.data << std::endl;
         //    });

@@ -382,6 +382,7 @@ public:
     }
 
 	void index(int num_threads) {
+        close_writer();
         sort(num_threads);
         open_reader();
         n_records = record_count();
