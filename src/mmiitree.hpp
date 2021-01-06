@@ -74,7 +74,7 @@ public:
 
 private:
 	struct IntervalLess {
-		bool operator()(const Interval &a, const Interval &b) const { return a.st < b.st; }
+		bool operator()(const Interval &a, const Interval &b) const { return a.st < b.st || (a.st == b.st && a.en < b.en); }
 	};
 
     mio::mmap_source reader;
