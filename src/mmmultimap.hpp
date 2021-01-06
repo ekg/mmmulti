@@ -49,7 +49,7 @@ private:
     // the comparator used to sort the backing array
     struct EntryLess {
 		bool operator()(const Entry& a, const Entry& b) const {
-            return a.key < b.key || (!(a.key != b.key) && a.value < b.value);
+            return a.key < b.key || (a.key == b.key && a.value < b.value);
         }
 	};
 

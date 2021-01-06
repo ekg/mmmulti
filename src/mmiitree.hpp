@@ -99,10 +99,7 @@ private:
 		S last; // last is the max value at node last_i
 		int64_t k;
 		if (a_size == 0) return -1;
-		for (i = 0; i < a_size; i += 2) {
-            last_i = i;
-            last = a[i].max = a[i].en; // leaves (i.e. at level 0)
-        }
+		for (i = 0; i < a_size; i += 2) last_i = i, last = a[i].max = a[i].en; // leaves (i.e. at level 0)
 		for (k = 1; ((int64_t)1)<<k <= a_size; ++k) { // process internal nodes in the bottom-up order
 			size_t x = ((int64_t)1)<<(k-1), i0 = (x<<1) - 1, step = x<<2; // i0 is the first node
 			for (i = i0; i < a_size; i += step) { // traverse all nodes at level k
