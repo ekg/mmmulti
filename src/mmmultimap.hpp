@@ -48,9 +48,7 @@ private:
 
     // the comparator used to sort the backing array
     struct EntryLess {
-		bool operator()(const Entry& a, const Entry& b) const {
-            return a.key < b.key || (a.key == b.key && a.value < b.value);
-        }
+        bool operator()(const std::pair<Key,Value>& a, const std::pair<Key,Value>& b) const { return a < b; }
 	};
 
     // memory mapped buffer
@@ -239,8 +237,8 @@ public:
             filename.c_str(), 0, mio::map_entire_file, error);
         if (error) { assert(false); }
         // sort in parallel (uses OpenMP if available, std::thread otherwise)
-        ips4o::parallel::sort((Entry*)buffer.begin(),
-                              (Entry*)buffer.end(),
+        ips4o::parallel::sort((std::pair<Key, Value>*)buffer.begin(),
+                              (std::pair<Key, Value>*)buffer.end(),
                               EntryLess(),
                               num_threads);
         sorted = true;
