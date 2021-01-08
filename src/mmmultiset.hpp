@@ -120,6 +120,10 @@ public:
         reader = mio::make_mmap_source(
             filename.c_str(), 0, mio::map_entire_file, error);
         if (error) { assert(false); }
+        // set up for sequential access
+        madvise((void*)reader.begin(),
+                reader.mapped_length(),
+                POSIX_MADV_WILLNEED | POSIX_MADV_SEQUENTIAL);
     }
 
     void close_reader(void) {
